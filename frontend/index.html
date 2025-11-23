@@ -23,7 +23,6 @@
         </div>
     </header>
 
-
     <div class="mqtt-status-bar">
         <div class="container-status">
             <div id="mqttStatus" class="status-indicator">
@@ -33,10 +32,8 @@
         </div>
     </div>
 
-
     <main class="dashboard">
         <div class="container-main">
-            
             <section class="panel-kontrol">
                 <h2 class="section-title">🎮 Panel Kontrol</h2>
                 <div class="control-grid">
@@ -58,7 +55,7 @@
                     </button>
                 </div>
 
-                <!-- 🆕 TAMBAHAN BARU: Tombol Delete Data -->
+                <!-- ================== Data Management Section (empat tombol) ================== -->
                 <div class="delete-controls" style="margin-top: 20px;">
                     <h3 class="section-subtitle" style="font-size: 14px; color: #666; margin-bottom: 10px; text-align: center;">🗑️ Data Management</h3>
                     <div class="control-grid">
@@ -74,12 +71,14 @@
                             <span class="control-icon">⚠️</span>
                             <span class="control-text">CLEAR ALL DATA</span>
                         </button>
+                        <button class="control-card purple" id="btnDownloadReport">
+                            <span class="control-icon">📄</span>
+                            <span class="control-text">DOWNLOAD REPORT</span>
+                        </button>
                     </div>
                 </div>
-                <!-- END TAMBAHAN BARU -->
-
+                <!-- =========================================================================== -->
             </section>
-
 
             <section class="device-section">
                 <div class="device-cards">
@@ -100,7 +99,6 @@
                     </div>
                 </div>
             </section>
-
 
             <section class="statistics-section">
                 <div class="stats-grid">
@@ -137,7 +135,6 @@
                 </div>
             </section>
 
-
             <section class="mqtt-params-section">
                 <h2 class="section-title">📊 MQTT Parameters</h2>
                 <div class="params-detail-grid">
@@ -168,28 +165,21 @@
                 </div>
             </section>
 
-
             <section class="chart-section">
                 <h2 class="section-title">📈 Real-time Network Analysis</h2>
-                
                 <div class="chart-wrapper" style="position: relative; height: 250px; margin-bottom: 20px;">
                     <h3 style="text-align: center; margin-bottom: 5px; font-size: 14px; color: #666;">Delay (ms)</h3>
                     <canvas id="delayChart"></canvas>
                 </div>
-
-
                 <div class="chart-wrapper" style="position: relative; height: 250px; margin-bottom: 20px;">
                     <h3 style="text-align: center; margin-bottom: 5px; font-size: 14px; color: #666;">Throughput (B/s)</h3>
                     <canvas id="throughputChart"></canvas>
                 </div>
-
-
                 <div class="chart-wrapper" style="position: relative; height: 250px;">
                     <h3 style="text-align: center; margin-bottom: 5px; font-size: 14px; color: #666;">Message Size (Bytes)</h3>
                     <canvas id="messageSizeChart"></canvas>
                 </div>
             </section>
-
 
             <section class="activity-section">
                 <h2 class="section-title">📋 Activity Log</h2>
@@ -197,11 +187,8 @@
                     <div class="no-activity">No activity yet...</div>
                 </div>
             </section>
-
-
         </div>
     </main>
-
 
     <div id="modalAddUser" class="modal">
         <div class="modal-content">
@@ -239,11 +226,9 @@
         </div>
     </div>
 
-
     <div id="notificationToast" class="toast">
         <span id="toastMessage"></span>
     </div>
-
 
     <script src="lib/chart.umd.js"></script>
     <script src="lib/mqttws31.min.js"></script>

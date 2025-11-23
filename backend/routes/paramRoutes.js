@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const ParamLog = require('../models/ParamLog');
 
+
 // GET param logs by device
 router.get('/logs/:device', async (req, res) => {
     try {
@@ -13,6 +14,7 @@ router.get('/logs/:device', async (req, res) => {
         res.json({ success: true, device: req.params.device, count: 0, data: [] });
     }
 });
+
 
 // GET param stats by device
 router.get('/stats/:device', async (req, res) => {
@@ -33,9 +35,11 @@ router.get('/stats/:device', async (req, res) => {
             });
         }
 
+
         const avgDelay = logs.reduce((sum, log) => sum + (log.delay || 0), 0) / logs.length;
         const avgThroughput = logs.reduce((sum, log) => sum + (log.throughput || 0), 0) / logs.length;
         const avgMessageSize = logs.reduce((sum, log) => sum + (log.messageSize || 0), 0) / logs.length;
+
 
         res.json({
             success: true,
@@ -62,12 +66,14 @@ router.get('/stats/:device', async (req, res) => {
     }
 });
 
+
 // POST param log
 router.post('/log', async (req, res) => {
     try {
         // Hapus timestamp bawaan ESP32 (millis) agar pakai waktu server
         const logData = { ...req.body };
         delete logData.timestamp; 
+
 
         const paramLog = new ParamLog(logData);
         await paramLog.save();
@@ -77,5 +83,37 @@ router.post('/log', async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
+
+
+// 🆕 TAMBAHAN BARU: DELETE param logs by device
+router.delete('/logs/:device', async (req, res) => {
+    try {
+        const { device } = req.params;
+        const result = await ParamLog.deleteMany({ device });
+        res.json({ 
+            success: true, 
+            message: `Deleted ${result.deletedCount} param logs for ${device}`,
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// 🆕 TAMBAHAN BARU: DELETE all param logs (semua device)
+router.delete('/logs', async (req, res) => {
+    try {
+        const result = await ParamLog.deleteMany({});
+        res.json({ 
+            success: true, 
+            message: `Deleted all ${result.deletedCount} param logs`,
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 
 module.exports = router;

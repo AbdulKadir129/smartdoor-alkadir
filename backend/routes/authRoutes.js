@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const AuthLog = require('../models/AuthLog');
 
+
 // GET semua auth logs
 router.get('/logs', async (req, res) => {
     try {
@@ -11,6 +12,7 @@ router.get('/logs', async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
+
 
 // GET auth logs by device
 router.get('/logs/:device', async (req, res) => {
@@ -23,6 +25,7 @@ router.get('/logs/:device', async (req, res) => {
     }
 });
 
+
 // POST auth log baru (dari ESP32 via MQTT)
 router.post('/log', async (req, res) => {
     try {
@@ -31,6 +34,7 @@ router.post('/log', async (req, res) => {
         delete logData.timestamp; // Hapus waktu 1970 dari ESP32
         // ---------------------------------------------------------------
 
+
         const authLog = new AuthLog(logData); // Gunakan logData, BUKAN req.body
         await authLog.save();
         res.json({ success: true, data: authLog });
@@ -38,6 +42,7 @@ router.post('/log', async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
+
 
 // GET statistik auth
 router.get('/stats/:device', async (req, res) => {
@@ -56,5 +61,37 @@ router.get('/stats/:device', async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
+
+
+// 🆕 TAMBAHAN BARU: DELETE auth logs by device
+router.delete('/logs/:device', async (req, res) => {
+    try {
+        const { device } = req.params;
+        const result = await AuthLog.deleteMany({ device });
+        res.json({ 
+            success: true, 
+            message: `Deleted ${result.deletedCount} auth logs for ${device}`,
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// 🆕 TAMBAHAN BARU: DELETE all auth logs (semua device)
+router.delete('/logs', async (req, res) => {
+    try {
+        const result = await AuthLog.deleteMany({});
+        res.json({ 
+            success: true, 
+            message: `Deleted all ${result.deletedCount} auth logs`,
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 
 module.exports = router;

@@ -7,6 +7,7 @@
     box-sizing: border-box;
 }
 
+
 :root {
     --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     --green: #28a745;
@@ -23,6 +24,7 @@
     --shadow-lg: 0 6px 16px rgba(0,0,0,0.12);
 }
 
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     background: var(--primary-gradient);
@@ -31,6 +33,7 @@ body {
     line-height: 1.5;
     font-size: 14px;
 }
+
 
 /* ========================================
    HEADER
@@ -44,6 +47,7 @@ body {
     z-index: 100;
 }
 
+
 .container-header {
     max-width: 1360px;
     margin: 0 auto;
@@ -55,16 +59,19 @@ body {
     gap: 12px;
 }
 
+
 .logo-section {
     display: flex;
     align-items: center;
     gap: 12px;
 }
 
+
 .icon {
     font-size: 36px;
     line-height: 1;
 }
+
 
 .header-text h1 {
     font-size: 22px;
@@ -76,10 +83,12 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
+
 .header-text p {
     font-size: 12px;
     color: var(--text-muted);
 }
+
 
 .header-right {
     display: flex;
@@ -87,15 +96,18 @@ body {
     gap: 16px;
 }
 
+
 .welcome-text {
     font-size: 13px;
     color: var(--text-muted);
 }
 
+
 .welcome-text strong {
     color: var(--text-dark);
     font-weight: 600;
 }
+
 
 .btn-logout {
     background: var(--red);
@@ -109,11 +121,13 @@ body {
     transition: all 0.25s ease;
 }
 
+
 .btn-logout:hover {
     background: #c82333;
     transform: translateY(-2px);
     box-shadow: var(--shadow);
 }
+
 
 /* ========================================
    MQTT STATUS BAR
@@ -124,11 +138,13 @@ body {
     padding: 11px 0;
 }
 
+
 .container-status {
     max-width: 1360px;
     margin: 0 auto;
     padding: 0 24px;
 }
+
 
 .status-indicator {
     display: flex;
@@ -138,21 +154,25 @@ body {
     font-weight: 600;
 }
 
+
 .status-dot {
     width: 9px;
     height: 9px;
     border-radius: 50%;
 }
 
+
 .status-dot.connected {
     background: var(--green);
     box-shadow: 0 0 6px rgba(40, 167, 69, 0.4);
 }
 
+
 .status-dot.disconnected {
     background: var(--red);
     box-shadow: 0 0 6px rgba(220, 53, 69, 0.4);
 }
+
 
 /* ========================================
    MAIN DASHBOARD
@@ -161,11 +181,13 @@ body {
     padding: 26px 0 40px;
 }
 
+
 .container-main {
     max-width: 1360px;
     margin: 0 auto;
     padding: 0 24px;
 }
+
 
 .section-title {
     font-size: 18px;
@@ -178,6 +200,7 @@ body {
     text-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+
 /* ========================================
    PANEL KONTROL
    ======================================== */
@@ -185,11 +208,13 @@ body {
     margin-bottom: 26px;
 }
 
+
 .control-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 16px;
 }
+
 
 .control-card {
     background: var(--white);
@@ -208,6 +233,7 @@ body {
     overflow: hidden;
 }
 
+
 .control-card::before {
     content: '';
     position: absolute;
@@ -217,31 +243,83 @@ body {
     height: 4px;
 }
 
+
 .control-card.green::before { background: var(--green); }
 .control-card.red::before { background: var(--red); }
 .control-card.orange::before { background: var(--orange); }
 .control-card.blue::before { background: var(--blue); }
+
 
 .control-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg);
 }
 
+
 .control-card.green:hover { background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: var(--white); }
 .control-card.red:hover { background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%); color: var(--white); }
 .control-card.orange:hover { background: linear-gradient(135deg, #fd7e14 0%, #ffc107 100%); color: var(--white); }
 .control-card.blue:hover { background: linear-gradient(135deg, #007bff 0%, #17a2b8 100%); color: var(--white); }
+
 
 .control-icon {
     font-size: 40px;
     line-height: 1;
 }
 
+
 .control-text {
     font-size: 13px;
     font-weight: 700;
     letter-spacing: 0.6px;
 }
+
+
+/* 🆕 TAMBAHAN BARU: Delete Button Styles */
+.delete-controls {
+    margin-top: 20px;
+}
+
+
+.section-subtitle {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-bottom: 10px;
+    text-align: center;
+    font-weight: 600;
+}
+
+
+.control-card.delete-auth::before { background: linear-gradient(90deg, #ff6b6b, #ff8787); }
+.control-card.delete-param::before { background: linear-gradient(90deg, #ffa500, #ffb732); }
+.control-card.delete-all::before { background: linear-gradient(90deg, #d63031, #e74c3c); }
+
+
+.control-card.delete-auth:hover {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ff8787 100%);
+    color: var(--white);
+}
+
+
+.control-card.delete-param:hover {
+    background: linear-gradient(135deg, #ffa500 0%, #ffb732 100%);
+    color: var(--white);
+}
+
+
+.control-card.delete-all:hover {
+    background: linear-gradient(135deg, #d63031 0%, #e74c3c 100%);
+    color: var(--white);
+    animation: pulseWarning 0.6s ease-in-out;
+}
+
+
+@keyframes pulseWarning {
+    0%, 100% { transform: translateY(-4px) scale(1); }
+    50% { transform: translateY(-4px) scale(1.02); }
+}
+/* END TAMBAHAN BARU */
+
 
 /* ========================================
    DEVICE CARDS
@@ -250,11 +328,13 @@ body {
     margin-bottom: 26px;
 }
 
+
 .device-cards {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
 }
+
 
 .device-card {
     background: var(--white);
@@ -272,17 +352,20 @@ body {
     border: 2px solid transparent;
 }
 
+
 .device-card:hover {
     transform: translateY(-4px);
     box-shadow: var(--shadow-lg);
     border-color: rgba(102, 126, 234, 0.3);
 }
 
+
 .device-card.active {
     background: var(--primary-gradient);
     color: var(--white);
     box-shadow: var(--shadow-lg);
 }
+
 
 .device-badge {
     position: absolute;
@@ -299,15 +382,18 @@ body {
     box-shadow: 0 2px 4px rgba(220, 53, 69, 0.3);
 }
 
+
 .device-card.active .device-badge {
     background: var(--white);
     color: var(--red);
 }
 
+
 .device-icon {
     font-size: 52px;
     line-height: 1;
 }
+
 
 .device-name {
     font-size: 14px;
@@ -316,6 +402,7 @@ body {
     letter-spacing: 0.8px;
 }
 
+
 /* ========================================
    STATISTICS
    ======================================== */
@@ -323,11 +410,13 @@ body {
     margin-bottom: 26px;
 }
 
+
 .stats-grid {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
     gap: 14px;
 }
+
 
 .stat-box {
     background: var(--white);
@@ -339,13 +428,16 @@ body {
     transition: all 0.25s ease;
 }
 
+
 .stat-box:hover {
     transform: translateY(-3px);
     box-shadow: var(--shadow-lg);
 }
 
+
 .stat-box.success-box { border-top-color: var(--green); }
 .stat-box.failed-box { border-top-color: var(--red); }
+
 
 .stat-label {
     font-size: 10px;
@@ -356,6 +448,7 @@ body {
     margin-bottom: 10px;
 }
 
+
 .stat-value {
     font-size: 32px;
     font-weight: 800;
@@ -364,11 +457,13 @@ body {
     line-height: 1;
 }
 
+
 .stat-unit {
     font-size: 10px;
     color: var(--text-muted);
     font-weight: 500;
 }
+
 
 /* ========================================
    MQTT PARAMETERS
@@ -377,11 +472,13 @@ body {
     margin-bottom: 26px;
 }
 
+
 .params-detail-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 14px;
 }
+
 
 .param-detail-card {
     background: var(--white);
@@ -392,10 +489,12 @@ body {
     transition: all 0.25s ease;
 }
 
+
 .param-detail-card:hover {
     transform: translateX(3px);
     box-shadow: var(--shadow-lg);
 }
+
 
 .param-label {
     font-size: 11px;
@@ -406,12 +505,14 @@ body {
     letter-spacing: 0.4px;
 }
 
+
 .param-value {
     font-size: 16px;
     font-weight: 700;
     color: var(--text-dark);
     word-break: break-all;
 }
+
 
 /* ========================================
    CHART & OTHER SECTIONS
@@ -422,6 +523,7 @@ body {
     margin-bottom: 26px;
 }
 
+
 .chart-wrapper,
 .image-container,
 .activity-log-container {
@@ -431,15 +533,18 @@ body {
     box-shadow: var(--shadow);
 }
 
+
 #realtimeChart {
     max-height: 320px;
 }
+
 
 .image-placeholder {
     padding: 50px 20px;
     text-align: center;
     color: var(--text-muted);
 }
+
 
 .placeholder-icon {
     font-size: 70px;
@@ -448,10 +553,12 @@ body {
     margin-bottom: 14px;
 }
 
+
 .activity-log-container {
     max-height: 450px;
     overflow-y: auto;
 }
+
 
 .activity-item {
     background: var(--gray-light);
@@ -462,13 +569,16 @@ body {
     transition: all 0.25s ease;
 }
 
+
 .activity-item:hover {
     transform: translateX(4px);
     box-shadow: var(--shadow);
 }
 
+
 .activity-item.success { border-left-color: var(--green); }
 .activity-item.failed { border-left-color: var(--red); }
+
 
 .activity-header {
     display: flex;
@@ -477,20 +587,24 @@ body {
     margin-bottom: 8px;
 }
 
+
 .activity-title {
     font-weight: 700;
     font-size: 14px;
 }
+
 
 .activity-time {
     font-size: 11px;
     color: var(--text-muted);
 }
 
+
 .activity-details {
     font-size: 13px;
     color: var(--text-muted);
 }
+
 
 .no-activity {
     text-align: center;
@@ -498,6 +612,7 @@ body {
     padding: 50px 20px;
     font-size: 14px;
 }
+
 
 /* ========================================
    MODAL
@@ -514,6 +629,7 @@ body {
     backdrop-filter: blur(5px);
 }
 
+
 .modal-content {
     background: var(--white);
     margin: 5% auto;
@@ -523,10 +639,12 @@ body {
     animation: modalSlideIn 0.3s ease;
 }
 
+
 @keyframes modalSlideIn {
     from { transform: translateY(-40px); opacity: 0; }
     to { transform: translateY(0); opacity: 1; }
 }
+
 
 .modal-header {
     background: var(--primary-gradient);
@@ -538,11 +656,13 @@ body {
     align-items: center;
 }
 
+
 .modal-header h2 {
     font-size: 18px;
     margin: 0;
     font-weight: 700;
 }
+
 
 .modal-close {
     font-size: 26px;
@@ -552,17 +672,21 @@ body {
     transition: transform 0.3s ease;
 }
 
+
 .modal-close:hover {
     transform: rotate(90deg);
 }
+
 
 .modal-content form {
     padding: 26px;
 }
 
+
 .form-group {
     margin-bottom: 18px;
 }
+
 
 .form-group label {
     display: block;
@@ -570,6 +694,7 @@ body {
     margin-bottom: 7px;
     font-size: 13px;
 }
+
 
 .form-group input {
     width: 100%;
@@ -580,11 +705,13 @@ body {
     transition: all 0.3s ease;
 }
 
+
 .form-group input:focus {
     outline: none;
     border-color: #667eea;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
+
 
 .form-group small {
     display: block;
@@ -592,6 +719,7 @@ body {
     font-size: 11px;
     color: var(--text-muted);
 }
+
 
 .btn-submit {
     width: 100%;
@@ -606,10 +734,12 @@ body {
     transition: all 0.3s ease;
 }
 
+
 .btn-submit:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow);
 }
+
 
 #modalMessage {
     margin-top: 14px;
@@ -620,15 +750,18 @@ body {
     font-weight: 600;
 }
 
+
 #modalMessage.success {
     background: #d4edda;
     color: #155724;
 }
 
+
 #modalMessage.error {
     background: #f8d7da;
     color: #721c24;
 }
+
 
 /* ========================================
    TOAST
@@ -648,15 +781,18 @@ body {
     z-index: 2000;
 }
 
+
 .toast.show { display: block; animation: toastSlideIn 0.3s ease; }
 .toast.success { background: var(--green); }
 .toast.error { background: var(--red); }
 .toast.info { background: var(--blue); }
 
+
 @keyframes toastSlideIn {
     from { transform: translateX(350px); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
 }
+
 
 /* ========================================
    LOGIN PAGE
@@ -669,10 +805,12 @@ body {
     padding: 20px;
 }
 
+
 .login-container {
     width: 100%;
     max-width: 400px;
 }
+
 
 .login-card {
     background: var(--white);
@@ -681,10 +819,12 @@ body {
     box-shadow: var(--shadow-lg);
 }
 
+
 .login-header {
     text-align: center;
     margin-bottom: 32px;
 }
+
 
 .login-header h1 {
     font-size: 24px;
@@ -694,14 +834,17 @@ body {
     -webkit-text-fill-color: transparent;
 }
 
+
 .login-header p {
     font-size: 13px;
     color: var(--text-muted);
 }
 
+
 .login-form .form-group {
     margin-bottom: 20px;
 }
+
 
 .btn-login {
     width: 100%;
@@ -716,10 +859,12 @@ body {
     transition: all 0.3s ease;
 }
 
+
 .btn-login:hover {
     transform: translateY(-2px);
     box-shadow: var(--shadow);
 }
+
 
 .message {
     margin-top: 16px;
@@ -730,15 +875,18 @@ body {
     font-weight: 600;
 }
 
+
 .message.success {
     background: #d4edda;
     color: #155724;
 }
 
+
 .message.error {
     background: #f8d7da;
     color: #721c24;
 }
+
 
 /* ========================================
    SCROLLBAR
@@ -746,6 +894,7 @@ body {
 ::-webkit-scrollbar { width: 8px; }
 ::-webkit-scrollbar-track { background: var(--gray-light); border-radius: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--primary-gradient); border-radius: 10px; }
+
 
 /* ========================================
    RESPONSIVE
@@ -755,10 +904,12 @@ body {
     .params-detail-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+
 @media (max-width: 992px) {
     .control-grid { grid-template-columns: repeat(2, 1fr); }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
 
 @media (max-width: 768px) {
     .container-header { flex-direction: column; }

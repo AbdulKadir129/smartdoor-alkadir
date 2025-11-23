@@ -3,10 +3,12 @@
 // FINAL VERSION (RENDER + HIVEMQ CLOUD)
 // ========================================
 
+
 // Configuration
 // 🌟 PERBAIKAN: Mengganti localhost/ngrok ke URL Render 24 JAM
 // URL API Render Anda: https://smartdoor-alkadir.onrender.com
 window.BASE_URL = 'https://smartdoor-alkadir.onrender.com'; 
+
 
 const MQTT_CONFIG = {
     // URL Cluster HiveMQ (Sudah benar dari update sebelumnya)
@@ -23,10 +25,12 @@ const MQTT_CONFIG = {
     }
 };
 
+
 let mqttClient = null;
 let chartManager = null;
 let deviceManager = null;
 let currentDevice = 'esp32cam';
+
 
 // ========================================
 // INITIALIZATION
@@ -34,14 +38,17 @@ let currentDevice = 'esp32cam';
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Initializing Smart Door Dashboard...');
 
+
     const userName = sessionStorage.getItem('userName');
     if (!userName) {
         window.location.href = 'login.html';
         return;
     }
 
+
     const userNameEl = document.getElementById('userName');
     if (userNameEl) userNameEl.textContent = userName;
+
 
     deviceManager = new DeviceManager();
     chartManager = new ChartManager();
@@ -51,11 +58,13 @@ document.addEventListener('DOMContentLoaded', () => {
     deviceManager.switchDevice('esp32cam');
 });
 
+
 // ========================================
 // MQTT INITIALIZATION
 // ========================================
 function initMQTT() {
     mqttClient = new MQTTClient(MQTT_CONFIG.broker, MQTT_CONFIG.port);
+
 
     mqttClient.on('connect', () => {
         updateMQTTStatus(true);
@@ -64,6 +73,7 @@ function initMQTT() {
         showToast('Connected to HiveMQ Cloud', 'success');
     });
 
+
     mqttClient.on('connectionLost', (response) => {
         updateMQTTStatus(false);
         // Tampilkan error spesifik jika ada
@@ -71,13 +81,16 @@ function initMQTT() {
         showToast('MQTT Connection Lost', 'error');
     });
 
+
     mqttClient.on('messageArrived', (message) => {
         handleMQTTMessage(message);
     });
 
+
     // UPDATE: Connect dengan Username, Password, dan SSL (true)
     mqttClient.connect(MQTT_CONFIG.username, MQTT_CONFIG.password, true);
 }
+
 
 function updateMQTTStatus(connected) {
     const statusEl = document.getElementById('mqttStatus');
@@ -96,6 +109,7 @@ function updateMQTTStatus(connected) {
     }
 }
 
+
 // ========================================
 // MQTT MESSAGE HANDLER
 // ========================================
@@ -103,10 +117,12 @@ function handleMQTTMessage(message) {
     const topic = message.destinationName;
     const payload = message.payloadString;
 
+
     try {
         const data = JSON.parse(payload);
         
         if (data.device && data.device !== currentDevice) return;
+
 
         if (topic === MQTT_CONFIG.topics.auth) {
             handleAuthMessage(data);
@@ -118,6 +134,7 @@ function handleMQTTMessage(message) {
     }
 }
 
+
 async function handleAuthMessage(data) {
     try {
         const response = await fetch(`${window.BASE_URL}/api/auth/log`, {
@@ -126,12 +143,15 @@ async function handleAuthMessage(data) {
             body: JSON.stringify(data)
         });
 
+
         const result = await response.json();
+
 
         if (result.success) {
             await deviceManager.loadDeviceStats(data.device);
             await deviceManager.loadDeviceHistory(data.device);
             updateDeviceBadge(data.device);
+
 
             const icon = data.status === 'success' ? '✅' : '❌';
             const type = data.status === 'success' ? 'success' : 'error';
@@ -143,9 +163,11 @@ async function handleAuthMessage(data) {
     }
 }
 
+
 async function handleParamMessage(data) {
     try {
         updateParamDisplay(data);
+
 
         if (chartManager) {
             const timestamp = data.timestamp || Date.now();
@@ -153,8 +175,10 @@ async function handleParamMessage(data) {
             const throughput = parseFloat(data.throughput) || 0;
             const messageSize = parseInt(data.messageSize) || 0;
 
+
             chartManager.updateChart(timestamp, delay, throughput, messageSize);
         }
+
 
         const response = await fetch(`${window.BASE_URL}/api/param/log`, {
             method: 'POST',
@@ -162,12 +186,15 @@ async function handleParamMessage(data) {
             body: JSON.stringify(data)
         });
 
+
         await deviceManager.loadDeviceStats(data.device);
+
 
     } catch (error) {
         console.error('❌ Error handling param message:', error);
     }
 }
+
 
 function updateParamDisplay(data) {
     const params = {
@@ -179,11 +206,13 @@ function updateParamDisplay(data) {
         paramQos: data.qos || 1
     };
 
+
     Object.keys(params).forEach(id => {
         const el = document.getElementById(id);
         if (el) el.textContent = params[id];
     });
 }
+
 
 function updateDeviceBadge(device) {
     const deviceCamelCase = device === 'esp32cam' ? 'Esp32cam' : 
@@ -199,6 +228,7 @@ function updateDeviceBadge(device) {
     }
 }
 
+
 function setupEventListeners() {
     document.querySelectorAll('.device-card').forEach(card => {
         card.addEventListener('click', () => {
@@ -207,18 +237,33 @@ function setupEventListeners() {
         });
     });
 
+
     const btnBukaPintu = document.getElementById('btnBukaPintu');
     const btnKunciPintu = document.getElementById('btnKunciPintu');
     const btnTambahUser = document.getElementById('btnTambahUser');
     const btnExportLogs = document.getElementById('btnExportLogs');
+
 
     if (btnBukaPintu) btnBukaPintu.addEventListener('click', handleOpenDoor);
     if (btnKunciPintu) btnKunciPintu.addEventListener('click', handleLockDoor);
     if (btnTambahUser) btnTambahUser.addEventListener('click', showAddUserModal);
     if (btnExportLogs) btnExportLogs.addEventListener('click', handleExportLogs);
 
+
+    // 🆕 TAMBAHAN BARU: Event listeners untuk tombol delete
+    const btnClearAuthLogs = document.getElementById('btnClearAuthLogs');
+    const btnClearParamLogs = document.getElementById('btnClearParamLogs');
+    const btnClearAllLogs = document.getElementById('btnClearAllLogs');
+
+    if (btnClearAuthLogs) btnClearAuthLogs.addEventListener('click', () => handleClearLogs('auth'));
+    if (btnClearParamLogs) btnClearParamLogs.addEventListener('click', () => handleClearLogs('param'));
+    if (btnClearAllLogs) btnClearAllLogs.addEventListener('click', handleClearAllLogs);
+    // END TAMBAHAN BARU
+
+
     const logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+
 
     const modal = document.getElementById('modalAddUser');
     if (modal) {
@@ -229,9 +274,11 @@ function setupEventListeners() {
         });
     }
 
+
     const formAddUser = document.getElementById('formAddUser');
     if (formAddUser) formAddUser.addEventListener('submit', handleAddUser);
 }
+
 
 function switchToDevice(device) {
     currentDevice = device;
@@ -243,6 +290,7 @@ function switchToDevice(device) {
     chartManager.loadHistory(device);
 }
 
+
 function handleOpenDoor() {
     if (!mqttClient || !mqttClient.isConnected) {
         showToast('MQTT not connected', 'error');
@@ -252,6 +300,7 @@ function handleOpenDoor() {
     mqttClient.publish(MQTT_CONFIG.topics.control, command, 1);
     showToast('🚪 Door open command sent', 'success');
 }
+
 
 function handleLockDoor() {
     if (!mqttClient || !mqttClient.isConnected) {
@@ -263,6 +312,7 @@ function handleLockDoor() {
     showToast('🔒 Door lock command sent', 'success');
 }
 
+
 function showAddUserModal() {
     const modal = document.getElementById('modalAddUser');
     if (!modal) return;
@@ -272,10 +322,12 @@ function showAddUserModal() {
     const groupRfidUid = document.getElementById('groupRfidUid');
     const groupFingerId = document.getElementById('groupFingerId');
 
+
     if (groupFaceId) groupFaceId.style.display = currentDevice === 'esp32cam' ? 'block' : 'none';
     if (groupRfidUid) groupRfidUid.style.display = currentDevice === 'rfid' ? 'block' : 'none';
     if (groupFingerId) groupFingerId.style.display = currentDevice === 'fingerprint' ? 'block' : 'none';
 }
+
 
 async function handleAddUser(e) {
     e.preventDefault();
@@ -284,9 +336,11 @@ async function handleAddUser(e) {
     
     const userData = { username, password, device: currentDevice, userType: 'device_user' };
 
+
     if (currentDevice === 'esp32cam') userData.faceId = document.getElementById('inputFaceId').value;
     else if (currentDevice === 'rfid') userData.rfidUid = document.getElementById('inputRfidUid').value;
     else if (currentDevice === 'fingerprint') userData.fingerId = document.getElementById('inputFingerId').value;
+
 
     try {
         const response = await fetch(`${window.BASE_URL}/api/users/add`, {
@@ -296,6 +350,7 @@ async function handleAddUser(e) {
         });
         const result = await response.json();
         const messageEl = document.getElementById('modalMessage');
+
 
         if (result.success) {
             messageEl.textContent = '✅ User added successfully';
@@ -315,6 +370,7 @@ async function handleAddUser(e) {
     }
 }
 
+
 async function handleExportLogs() {
     try {
         const [authRes, paramRes] = await Promise.all([
@@ -322,10 +378,13 @@ async function handleExportLogs() {
             fetch(`${window.BASE_URL}/api/param/logs/${currentDevice}`)
         ]);
 
+
         const authData = await authRes.json();
         const paramData = await paramRes.json();
 
+
         let csv = 'Type,Device,Timestamp,Status,Message,Details\n';
+
 
         if (authData.data) {
             authData.data.forEach(log => {
@@ -334,6 +393,7 @@ async function handleExportLogs() {
             });
         }
 
+
         if (paramData.data) {
             paramData.data.forEach(log => {
                 const timestamp = new Date(log.timestamp).toLocaleString('id-ID');
@@ -341,6 +401,7 @@ async function handleExportLogs() {
                 csv += `Param,${log.device},${timestamp},-,-,"${details}"\n`;
             });
         }
+
 
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -357,6 +418,122 @@ async function handleExportLogs() {
     }
 }
 
+
+// 🆕 TAMBAHAN BARU: Function untuk clear logs per type
+async function handleClearLogs(type) {
+    const logType = type === 'auth' ? 'Authentication' : 'Parameter';
+    const deviceName = currentDevice.toUpperCase();
+    
+    const confirmMsg = `⚠️ Delete all ${logType} logs for ${deviceName}?\n\nThis action cannot be undone!`;
+    
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/${type}/logs/${currentDevice}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showToast(`✅ ${result.message}`, 'success');
+            
+            // Reload data setelah delete
+            await deviceManager.loadDeviceStats(currentDevice);
+            
+            if (type === 'auth') {
+                await deviceManager.loadDeviceHistory(currentDevice);
+            } else {
+                // Clear chart jika param logs
+                if (chartManager) {
+                    chartManager.delayChart.data.labels = [];
+                    chartManager.delayChart.data.datasets[0].data = [];
+                    chartManager.throughputChart.data.labels = [];
+                    chartManager.throughputChart.data.datasets[0].data = [];
+                    chartManager.msgSizeChart.data.labels = [];
+                    chartManager.msgSizeChart.data.datasets[0].data = [];
+                    chartManager.delayChart.update();
+                    chartManager.throughputChart.update();
+                    chartManager.msgSizeChart.update();
+                }
+            }
+        } else {
+            showToast(`❌ Error: ${result.message}`, 'error');
+        }
+    } catch (error) {
+        showToast(`❌ Delete failed: ${error.message}`, 'error');
+        console.error('Delete error:', error);
+    }
+}
+
+
+// 🆕 TAMBAHAN BARU: Function untuk clear ALL logs (semua device)
+async function handleClearAllLogs() {
+    const confirmText = '⚠️ DELETE ALL DATA FROM ALL DEVICES?\n\n' +
+                       'This will permanently delete:\n' +
+                       '• All Authentication Logs\n' +
+                       '• All Parameter Logs\n' +
+                       '• From ESP32-CAM, RFID, and Fingerprint\n\n' +
+                       'Type "DELETE ALL" to confirm:';
+    
+    const userInput = prompt(confirmText);
+    
+    if (userInput !== 'DELETE ALL') {
+        showToast('❌ Cancelled. Data is safe.', 'info');
+        return;
+    }
+
+    try {
+        // Delete auth logs
+        const authRes = await fetch(`${window.BASE_URL}/api/auth/logs`, {
+            method: 'DELETE'
+        });
+        const authData = await authRes.json();
+        
+        // Delete param logs
+        const paramRes = await fetch(`${window.BASE_URL}/api/param/logs`, {
+            method: 'DELETE'
+        });
+        const paramData = await paramRes.json();
+        
+        if (authData.success && paramData.success) {
+            const totalDeleted = authData.deletedCount + paramData.deletedCount;
+            showToast(`✅ ALL DATA DELETED! (${totalDeleted} records)`, 'success');
+            
+            // Reload semua data dan reset UI
+            await deviceManager.loadDeviceStats(currentDevice);
+            await deviceManager.loadDeviceHistory(currentDevice);
+            
+            // Reset badges semua device
+            document.getElementById('badgeEsp32cam').textContent = '0';
+            document.getElementById('badgeRfid').textContent = '0';
+            document.getElementById('badgeFingerprint').textContent = '0';
+            
+            // Clear charts
+            if (chartManager) {
+                chartManager.delayChart.data.labels = [];
+                chartManager.delayChart.data.datasets[0].data = [];
+                chartManager.throughputChart.data.labels = [];
+                chartManager.throughputChart.data.datasets[0].data = [];
+                chartManager.msgSizeChart.data.labels = [];
+                chartManager.msgSizeChart.data.datasets[0].data = [];
+                chartManager.delayChart.update();
+                chartManager.throughputChart.update();
+                chartManager.msgSizeChart.update();
+            }
+        } else {
+            showToast(`❌ Delete failed`, 'error');
+        }
+    } catch (error) {
+        showToast(`❌ Delete failed: ${error.message}`, 'error');
+        console.error('Delete error:', error);
+    }
+}
+// END TAMBAHAN BARU
+
+
 async function handleLogout() {
     try {
         await fetch(`${window.BASE_URL}/api/users/logout`, { method: 'POST' });
@@ -368,6 +545,7 @@ async function handleLogout() {
         window.location.href = 'login.html';
     }
 }
+
 
 function showToast(message, type = 'info') {
     const toast = document.getElementById('notificationToast');

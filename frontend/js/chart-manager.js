@@ -10,7 +10,7 @@ class ChartManager {
         
         // Inisialisasi 3 Chart
         this.delayChart = this.createChart('delayChart', 'Delay (ms)', 'rgb(255, 99, 132)');
-        this.throughputChart = this.createChart('throughputChart', 'Throughput (B/s)', 'rgb(54, 162, 235)');
+        this.throughputChart = this.createChart('throughputChart', 'Throughput (bps)', 'rgb(54, 162, 235)');
         this.msgSizeChart = this.createChart('messageSizeChart', 'Message Size (bytes)', 'rgb(75, 192, 192)');
         
         console.log('✅ All 3 Charts initialized successfully');

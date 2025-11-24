@@ -140,7 +140,7 @@ async function handleParamMessage(data) {
         updateParamDisplay(data);
 
         if (chartManager) {
-            const timestamp = data.timestamp || Date.now();
+            const timestamp = Date.now();
             const delay = parseFloat(data.delay) || 0;
             const throughput = parseFloat(data.throughput) || 0;
             const messageSize = parseInt(data.messageSize) || 0;

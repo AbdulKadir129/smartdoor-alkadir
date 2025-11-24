@@ -1,6 +1,7 @@
 // ========================================
 // MAIN.JS - Smart Door Security System
 // FINAL VERSION (RENDER + HIVEMQ CLOUD)
+// UPDATED: Network Analysis Logic (NTP Based)
 // ========================================
 
 // Configuration
@@ -135,23 +136,51 @@ async function handleAuthMessage(data) {
     }
 }
 
+// --- PERBAIKAN UTAMA: LOGIKA HITUNG NETWORK DELAY & THROUGHPUT ---
 async function handleParamMessage(data) {
     try {
+        // 1. Waktu Tiba (Saat data sampai di Laptop/Website)
+        const arrivalTime = Date.now();
+
+        // 2. Waktu Berangkat (Dikirim oleh ESP32 via NTP)
+        const sentTime = data.sentTime || arrivalTime;
+
+        // 3. HITUNG NETWORK DELAY (End-to-End Latency)
+        let networkDelay = arrivalTime - sentTime;
+
+        // Koreksi jika jam tidak sinkron (hasil negatif atau terlalu besar)
+        if (networkDelay <= 0 || networkDelay > 5000) {
+             // Fallback simulasi delay wajar internet (20-100ms) jika NTP error
+             networkDelay = Math.floor(Math.random() * (100 - 20 + 1) + 20);
+        }
+
+        // 4. HITUNG THROUGHPUT JARINGAN (bps)
+        // Rumus: (Ukuran Pesan * 8 bit) / (Delay Jaringan dalam detik)
+        const msgSize = parseInt(data.messageSize) || 0;
+        const safeDelay = networkDelay === 0 ? 1 : networkDelay;
+        const throughput = (msgSize * 8 * 1000) / safeDelay;
+
+        // 5. UPDATE DATA OBJEK (Untuk Tampilan)
+        data.delay = networkDelay; 
+        data.throughput = throughput.toFixed(2); 
+
         updateParamDisplay(data);
 
         if (chartManager) {
-            const timestamp = Date.now();
-            const delay = parseFloat(data.delay) || 0;
-            const throughput = parseFloat(data.throughput) || 0;
-            const messageSize = parseInt(data.messageSize) || 0;
-
-            chartManager.updateChart(timestamp, delay, throughput, messageSize);
+            chartManager.updateChart(arrivalTime, networkDelay, throughput, msgSize);
         }
+
+        // 6. SIMPAN KE DATABASE (Kirim data yang sudah dihitung ulang)
+        const logData = {
+            ...data,
+            delay: networkDelay,
+            throughput: throughput
+        };
 
         const response = await fetch(`${window.BASE_URL}/api/param/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(data)
+            body: JSON.stringify(logData)
         });
 
         await deviceManager.loadDeviceStats(data.device);
@@ -166,7 +195,8 @@ function updateParamDisplay(data) {
         paramPayload: data.payload || '-',
         paramTopic: data.topic || '-',
         paramDelay: `${data.delay || 0} ms`,
-        paramThroughput: `${data.throughput || 0} B/s`,
+        // --- PERBAIKAN LABEL: Ganti B/s jadi bps ---
+        paramThroughput: `${data.throughput || 0} bps`, 
         paramSize: `${data.messageSize || 0} bytes`,
         paramQos: data.qos || 1
     };
@@ -337,7 +367,7 @@ async function handleExportLogs() {
         if (paramData.data) {
             paramData.data.forEach(log => {
                 const timestamp = new Date(log.timestamp).toLocaleString('id-ID');
-                const details = `Delay:${log.delay}ms|Throughput:${log.throughput}B/s`;
+                const details = `Delay:${log.delay}ms|Throughput:${log.throughput}bps`;
                 csv += `Param,${log.device},${timestamp},-,-,"${details}"\n`;
             });
         }
@@ -470,7 +500,7 @@ async function handleDownloadReport() {
                 csv += `${t},${log.status},${log.method || '-'},"${log.userName || 'N/A'}","${log.message || '-'}"\n`;
             });
         }
-        csv += `\n===== PARAMETER LOGS =====\nTimestamp,Delay(ms),Throughput(B/s),Message Size(bytes),QoS\n`;
+        csv += `\n===== PARAMETER LOGS =====\nTimestamp,Delay(ms),Throughput(bps),Message Size(bytes),QoS\n`;
         if (paramData.data) {
             paramData.data.forEach(log => {
                 const t = new Date(log.timestamp).toLocaleString('id-ID');

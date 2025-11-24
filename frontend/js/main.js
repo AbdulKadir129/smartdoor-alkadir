@@ -173,6 +173,7 @@ async function handleParamMessage(data) {
         // 6. SIMPAN KE DATABASE (Kirim data yang sudah dihitung ulang)
         const logData = {
             ...data,
+            payload: data.payload || "Network Data", 
             delay: networkDelay,
             throughput: throughput
         };

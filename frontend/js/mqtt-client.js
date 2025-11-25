@@ -66,7 +66,6 @@ class MQTTClient {
 
             console.log(`🔄 Connecting to ${this.brokerUrl}:${this.port} (SSL: ${useSSL})...`);
             this.client.connect(connectOptions);
-
         } catch (error) {
             console.error('❌ MQTT Error:', error);
         }

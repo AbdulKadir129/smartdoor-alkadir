@@ -100,6 +100,38 @@
                 </div>
             </section>
 
+            <!-- ✅ TAMBAHAN BARU: LAST RECOGNIZED FACE PANEL -->
+            <section class="last-face-section">
+                <h2 class="section-title">👤 Last Recognized Face</h2>
+                <div class="last-face-container">
+                    <div class="face-image-wrapper">
+                        <img id="lastFaceImage" src="" alt="No face recognized yet" style="display: none;">
+                        <div id="noFacePlaceholder" class="no-face-placeholder">
+                            <span class="placeholder-icon">📷</span>
+                            <p>No face recognition data yet</p>
+                        </div>
+                    </div>
+                    <div class="face-info">
+                        <div class="face-info-item">
+                            <span class="info-label">User Name:</span>
+                            <span class="info-value" id="lastFaceName">-</span>
+                        </div>
+                        <div class="face-info-item">
+                            <span class="info-label">User ID:</span>
+                            <span class="info-value" id="lastFaceId">-</span>
+                        </div>
+                        <div class="face-info-item">
+                            <span class="info-label">Status:</span>
+                            <span class="info-value" id="lastFaceStatus">-</span>
+                        </div>
+                        <div class="face-info-item">
+                            <span class="info-label">Time:</span>
+                            <span class="info-value" id="lastFaceTime">-</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <!-- STATISTICS SECTION - UPDATED WITH JITTER & PACKET LOSS -->
             <section class="statistics-section">
                 <h2 class="section-title">📊 Statistics Overview</h2>

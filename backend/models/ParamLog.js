@@ -39,10 +39,20 @@ const paramLogSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    // ✅ TAMBAHAN BARU: Sequence Number untuk Packet Loss Detection
+    sequenceNumber: {
+        type: Number,
+        default: 0,
+        index: true  // Index untuk query performance
+    },
     timestamp: {
         type: Date,
         default: Date.now
     }
 });
+
+// Index untuk query performance
+paramLogSchema.index({ device: 1, timestamp: -1 });
+paramLogSchema.index({ device: 1, sequenceNumber: -1 });
 
 module.exports = mongoose.model('ParamLog', paramLogSchema);

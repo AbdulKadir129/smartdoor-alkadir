@@ -1,7 +1,7 @@
 // ========================================
-// MAIN.JS - Smart Door Security System
-// FINAL VERSION (RENDER + HIVEMQ CLOUD)
-// UPDATED: Network Analysis Logic (NTP Based)
+// MAIN.JS - IMPROVED VERSION
+// Smart Door Security System
+// UPDATED: Support Jitter & Packet Loss + Better UI
 // ========================================
 
 // Configuration
@@ -57,13 +57,13 @@ function initMQTT() {
         updateMQTTStatus(true);
         mqttClient.subscribe(MQTT_CONFIG.topics.auth, 1);
         mqttClient.subscribe(MQTT_CONFIG.topics.param, 1);
-        showToast('Connected to HiveMQ Cloud', 'success');
+        showToast('✅ Connected to HiveMQ Cloud', 'success');
     });
 
     mqttClient.on('connectionLost', (response) => {
         updateMQTTStatus(false);
         console.error("Connection lost detail:", response.errorMessage);
-        showToast('MQTT Connection Lost', 'error');
+        showToast('❌ MQTT Connection Lost', 'error');
     });
 
     mqttClient.on('messageArrived', (message) => {
@@ -136,7 +136,7 @@ async function handleAuthMessage(data) {
     }
 }
 
-// --- PERBAIKAN UTAMA: LOGIKA HITUNG NETWORK DELAY & THROUGHPUT ---
+// ✅ UPDATED: Support Jitter & Packet Loss
 async function handleParamMessage(data) {
     try {
         // 1. Waktu Tiba (Saat data sampai di Laptop/Website)
@@ -155,22 +155,28 @@ async function handleParamMessage(data) {
         }
 
         // 4. HITUNG THROUGHPUT JARINGAN (bps)
-        // Rumus: (Ukuran Pesan * 8 bit) / (Delay Jaringan dalam detik)
         const msgSize = parseInt(data.messageSize) || 0;
         const safeDelay = networkDelay === 0 ? 1 : networkDelay;
         const throughput = (msgSize * 8 * 1000) / safeDelay;
 
+        // ✅ TAMBAHAN BARU: Ambil Jitter & Packet Loss dari backend
+        const jitter = data.jitter || 0;
+        const packetLoss = data.packetLoss || 0;
+
         // 5. UPDATE DATA OBJEK (Untuk Tampilan)
         data.delay = networkDelay; 
-        data.throughput = throughput.toFixed(2); 
+        data.throughput = throughput.toFixed(2);
+        data.jitter = jitter;
+        data.packetLoss = packetLoss;
 
         updateParamDisplay(data);
 
+        // ✅ UPDATED: Pass 5 parameters ke chart
         if (chartManager) {
-            chartManager.updateChart(arrivalTime, networkDelay, throughput, msgSize);
+            chartManager.updateChart(arrivalTime, networkDelay, throughput, msgSize, jitter, packetLoss);
         }
 
-        // 6. SIMPAN KE DATABASE (Kirim data yang sudah dihitung ulang)
+        // 6. SIMPAN KE DATABASE (Backend akan hitung jitter sendiri)
         const logData = {
             ...data,
             payload: data.payload || "Network Data", 
@@ -184,6 +190,15 @@ async function handleParamMessage(data) {
             body: JSON.stringify(logData)
         });
 
+        const result = await response.json();
+        
+        // ✅ UPDATE: Ambil jitter & packet loss dari response backend
+        if (result.success && result.data) {
+            data.jitter = result.data.jitter || 0;
+            data.packetLoss = result.data.packetLoss || 0;
+            updateParamDisplay(data);
+        }
+
         await deviceManager.loadDeviceStats(data.device);
 
     } catch (error) {
@@ -191,136 +206,163 @@ async function handleParamMessage(data) {
     }
 }
 
+// ✅ UPDATED: Tambah Jitter & Packet Loss display
 function updateParamDisplay(data) {
     const params = {
         paramPayload: data.payload || '-',
         paramTopic: data.topic || '-',
         paramDelay: `${data.delay || 0} ms`,
-        // --- PERBAIKAN LABEL: Ganti B/s jadi bps ---
         paramThroughput: `${data.throughput || 0} bps`, 
         paramSize: `${data.messageSize || 0} bytes`,
-        paramQos: data.qos || 1
+        paramQos: data.qos || 1,
+        // ✅ TAMBAHAN BARU
+        paramJitter: `${data.jitter || 0} ms`,
+        paramPacketLoss: `${data.packetLoss || 0} %`
     };
 
     Object.keys(params).forEach(id => {
         const el = document.getElementById(id);
-        if (el) el.textContent = params[id];
+        if (el) {
+            el.textContent = params[id];
+            // Add animation
+            el.style.transform = 'scale(1.05)';
+            setTimeout(() => {
+                el.style.transform = 'scale(1)';
+            }, 150);
+        }
     });
 }
 
 function updateDeviceBadge(device) {
-    const deviceCamelCase = device === 'esp32cam' ? 'Esp32cam' : 
-                           device === 'rfid' ? 'Rfid' : 
-                           device === 'fingerprint' ? 'Fingerprint' : device;
-    const badgeId = `badge${deviceCamelCase}`;
-    const badgeEl = document.getElementById(badgeId);
-    if (badgeEl) {
-        const currentCount = parseInt(badgeEl.textContent) || 0;
-        badgeEl.textContent = currentCount + 1;
+    const badges = {
+        'esp32cam': 'badgeEsp32cam',
+        'rfid': 'badgeRfid',
+        'fingerprint': 'badgeFingerprint'
+    };
+    
+    const badgeId = badges[device];
+    if (badgeId) {
+        const badge = document.getElementById(badgeId);
+        if (badge) {
+            const currentCount = parseInt(badge.textContent) || 0;
+            badge.textContent = currentCount + 1;
+            
+            // Animation
+            badge.style.transform = 'scale(1.3)';
+            setTimeout(() => {
+                badge.style.transform = 'scale(1)';
+            }, 200);
+        }
     }
 }
 
 // ========================================
-// EVENT LISTENERS & UI LOGIC
+// EVENT LISTENERS
 // ========================================
 function setupEventListeners() {
+    // Device switching
     document.querySelectorAll('.device-card').forEach(card => {
-        card.addEventListener('click', () => {
-            const device = card.getAttribute('data-device');
-            switchToDevice(device);
+        card.addEventListener('click', function() {
+            const device = this.getAttribute('data-device');
+            currentDevice = device;
+            
+            // Update active state
+            document.querySelectorAll('.device-card').forEach(c => c.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Load data
+            deviceManager.switchDevice(device);
+            if (chartManager) {
+                chartManager.loadHistory(device);
+            }
         });
     });
 
-    const btnBukaPintu = document.getElementById('btnBukaPintu');
-    const btnKunciPintu = document.getElementById('btnKunciPintu');
-    const btnTambahUser = document.getElementById('btnTambahUser');
-    const btnExportLogs = document.getElementById('btnExportLogs');
+    // Control buttons
+    document.getElementById('btnBukaPintu')?.addEventListener('click', () => handleDoorControl('open'));
+    document.getElementById('btnKunciPintu')?.addEventListener('click', () => handleDoorControl('lock'));
+    document.getElementById('btnTambahUser')?.addEventListener('click', handleAddUser);
+    document.getElementById('btnExportLogs')?.addEventListener('click', handleExportLogs);
+    
+    // Delete buttons
+    document.getElementById('btnClearAuthLogs')?.addEventListener('click', () => handleClearLogs('auth'));
+    document.getElementById('btnClearParamLogs')?.addEventListener('click', () => handleClearLogs('param'));
+    document.getElementById('btnClearAllLogs')?.addEventListener('click', handleClearAllLogs);
+    document.getElementById('btnDownloadReport')?.addEventListener('click', handleDownloadReport);
 
-    if (btnBukaPintu) btnBukaPintu.addEventListener('click', handleOpenDoor);
-    if (btnKunciPintu) btnKunciPintu.addEventListener('click', handleLockDoor);
-    if (btnTambahUser) btnTambahUser.addEventListener('click', showAddUserModal);
-    if (btnExportLogs) btnExportLogs.addEventListener('click', handleExportLogs);
+    // Logout
+    document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
 
-    // 🆕 TAMBAHAN BARU: Event listeners untuk tombol delete & report
-    const btnClearAuthLogs = document.getElementById('btnClearAuthLogs');
-    const btnClearParamLogs = document.getElementById('btnClearParamLogs');
-    const btnClearAllLogs = document.getElementById('btnClearAllLogs');
-    const btnDownloadReport = document.getElementById('btnDownloadReport');
-    if (btnClearAuthLogs) btnClearAuthLogs.addEventListener('click', () => handleClearLogs('auth'));
-    if (btnClearParamLogs) btnClearParamLogs.addEventListener('click', () => handleClearLogs('param'));
-    if (btnClearAllLogs) btnClearAllLogs.addEventListener('click', handleClearAllLogs);
-    if (btnDownloadReport) btnDownloadReport.addEventListener('click', handleDownloadReport);
-    // END TAMBAHAN BARU
+    // Modal
+    const modal = document.getElementById('modalAddUser');
+    const modalClose = modal?.querySelector('.modal-close');
+    
+    modalClose?.addEventListener('click', () => {
+        modal.style.display = 'none';
+    });
 
-    const logoutBtn = document.getElementById('logoutBtn');
-    if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.style.display = 'none';
+        }
+    });
 
+    // Form submit
+    document.getElementById('formAddUser')?.addEventListener('submit', handleSubmitUser);
+}
+
+// ========================================
+// CONTROL HANDLERS
+// ========================================
+function handleDoorControl(action) {
+    if (!mqttClient || !mqttClient.isConnected) {
+        showToast('❌ MQTT not connected', 'error');
+        return;
+    }
+
+    const payload = JSON.stringify({
+        device: currentDevice,
+        action: action
+    });
+
+    mqttClient.publish(MQTT_CONFIG.topics.control, payload, 1);
+    
+    const actionText = action === 'open' ? 'membuka' : 'mengunci';
+    showToast(`🚪 Perintah ${actionText} pintu terkirim`, 'info');
+}
+
+function handleAddUser() {
     const modal = document.getElementById('modalAddUser');
     if (modal) {
-        const closeBtn = modal.querySelector('.modal-close');
-        if (closeBtn) closeBtn.addEventListener('click', () => modal.style.display = 'none');
-        window.addEventListener('click', (e) => {
-            if (e.target === modal) modal.style.display = 'none';
-        });
+        modal.classList.add('show');
+        
+        // Show relevant fields based on current device
+        document.getElementById('groupFaceId').style.display = currentDevice === 'esp32cam' ? 'block' : 'none';
+        document.getElementById('groupRfidUid').style.display = currentDevice === 'rfid' ? 'block' : 'none';
+        document.getElementById('groupFingerId').style.display = currentDevice === 'fingerprint' ? 'block' : 'none';
     }
-
-    const formAddUser = document.getElementById('formAddUser');
-    if (formAddUser) formAddUser.addEventListener('submit', handleAddUser);
 }
 
-function switchToDevice(device) {
-    currentDevice = device;
-    document.querySelectorAll('.device-card').forEach(card => {
-        card.classList.remove('active');
-        if (card.getAttribute('data-device') === device) card.classList.add('active');
-    });
-    deviceManager.switchDevice(device);
-    chartManager.loadHistory(device);
-}
-
-function handleOpenDoor() {
-    if (!mqttClient || !mqttClient.isConnected) {
-        showToast('MQTT not connected', 'error');
-        return;
-    }
-    const command = JSON.stringify({ device: currentDevice, action: 'open', timestamp: Date.now() });
-    mqttClient.publish(MQTT_CONFIG.topics.control, command, 1);
-    showToast('🚪 Door open command sent', 'success');
-}
-
-function handleLockDoor() {
-    if (!mqttClient || !mqttClient.isConnected) {
-        showToast('MQTT not connected', 'error');
-        return;
-    }
-    const command = JSON.stringify({ device: currentDevice, action: 'lock', timestamp: Date.now() });
-    mqttClient.publish(MQTT_CONFIG.topics.control, command, 1);
-    showToast('🔒 Door lock command sent', 'success');
-}
-
-function showAddUserModal() {
-    const modal = document.getElementById('modalAddUser');
-    if (!modal) return;
-    modal.style.display = 'block';
-    
-    const groupFaceId = document.getElementById('groupFaceId');
-    const groupRfidUid = document.getElementById('groupRfidUid');
-    const groupFingerId = document.getElementById('groupFingerId');
-
-    if (groupFaceId) groupFaceId.style.display = currentDevice === 'esp32cam' ? 'block' : 'none';
-    if (groupRfidUid) groupRfidUid.style.display = currentDevice === 'rfid' ? 'block' : 'none';
-    if (groupFingerId) groupFingerId.style.display = currentDevice === 'fingerprint' ? 'block' : 'none';
-}
-
-async function handleAddUser(e) {
+async function handleSubmitUser(e) {
     e.preventDefault();
+    
     const username = document.getElementById('inputUsername').value;
     const password = document.getElementById('inputPassword').value;
-    const userData = { username, password, device: currentDevice, userType: 'device_user' };
+    
+    const userData = {
+        username,
+        password,
+        device: currentDevice,
+        userType: 'device_user'
+    };
 
-    if (currentDevice === 'esp32cam') userData.faceId = document.getElementById('inputFaceId').value;
-    else if (currentDevice === 'rfid') userData.rfidUid = document.getElementById('inputRfidUid').value;
-    else if (currentDevice === 'fingerprint') userData.fingerId = document.getElementById('inputFingerId').value;
+    if (currentDevice === 'esp32cam') {
+        userData.faceId = document.getElementById('inputFaceId').value;
+    } else if (currentDevice === 'rfid') {
+        userData.rfidUid = document.getElementById('inputRfidUid').value;
+    } else if (currentDevice === 'fingerprint') {
+        userData.fingerId = document.getElementById('inputFingerId').value;
+    }
 
     try {
         const response = await fetch(`${window.BASE_URL}/api/users/add`, {
@@ -328,24 +370,20 @@ async function handleAddUser(e) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(userData)
         });
+
         const result = await response.json();
         const messageEl = document.getElementById('modalMessage');
 
         if (result.success) {
-            messageEl.textContent = '✅ User added successfully';
-            messageEl.className = 'success';
+            showToast('✅ User berhasil ditambahkan', 'success');
             document.getElementById('formAddUser').reset();
-            setTimeout(() => {
-                document.getElementById('modalAddUser').style.display = 'none';
-                messageEl.textContent = '';
-            }, 2000);
-            showToast('User added successfully', 'success');
+            document.getElementById('modalAddUser').classList.remove('show');
         } else {
             messageEl.textContent = '❌ ' + result.message;
             messageEl.className = 'error';
         }
     } catch (error) {
-        showToast('Error adding user', 'error');
+        showToast('❌ Error adding user', 'error');
     }
 }
 
@@ -359,35 +397,29 @@ async function handleExportLogs() {
         const paramData = await paramRes.json();
 
         let csv = 'Type,Device,Timestamp,Status,Message,Details\n';
+        
         if (authData.data) {
             authData.data.forEach(log => {
                 const timestamp = new Date(log.timestamp).toLocaleString('id-ID');
                 csv += `Auth,${log.device},${timestamp},${log.status},"${log.message}","${log.userName || ''}"\n`;
             });
         }
+        
         if (paramData.data) {
             paramData.data.forEach(log => {
                 const timestamp = new Date(log.timestamp).toLocaleString('id-ID');
-                const details = `Delay:${log.delay}ms|Throughput:${log.throughput}bps`;
+                const details = `Delay:${log.delay}ms|Throughput:${log.throughput}bps|Jitter:${log.jitter}ms|PacketLoss:${log.packetLoss}%`;
                 csv += `Param,${log.device},${timestamp},-,-,"${details}"\n`;
             });
         }
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `smartdoor_${currentDevice}_${Date.now()}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        
+        downloadCSV(csv, `smartdoor_${currentDevice}_${Date.now()}.csv`);
         showToast('📥 Data exported successfully', 'success');
     } catch (error) {
-        showToast('Export failed', 'error');
+        showToast('❌ Export failed', 'error');
     }
 }
 
-// 🆕 TAMBAHAN BARU: Function untuk clear logs per type
 async function handleClearLogs(type) {
     const logType = type === 'auth' ? 'Authentication' : 'Parameter';
     const deviceName = currentDevice.toUpperCase();
@@ -402,31 +434,20 @@ async function handleClearLogs(type) {
         if (result.success) {
             showToast(`✅ ${result.message}`, 'success');
             await deviceManager.loadDeviceStats(currentDevice);
+            
             if (type === 'auth') {
                 await deviceManager.loadDeviceHistory(currentDevice);
             } else {
-                if (chartManager) {
-                    chartManager.delayChart.data.labels = [];
-                    chartManager.delayChart.data.datasets[0].data = [];
-                    chartManager.throughputChart.data.labels = [];
-                    chartManager.throughputChart.data.datasets[0].data = [];
-                    chartManager.msgSizeChart.data.labels = [];
-                    chartManager.msgSizeChart.data.datasets[0].data = [];
-                    chartManager.delayChart.update();
-                    chartManager.throughputChart.update();
-                    chartManager.msgSizeChart.update();
-                }
+                if (chartManager) chartManager.clearCharts();
             }
         } else {
             showToast(`❌ Error: ${result.message}`, 'error');
         }
     } catch (error) {
         showToast(`❌ Delete failed: ${error.message}`, 'error');
-        console.error('Delete error:', error);
     }
 }
 
-// 🆕 TAMBAHAN BARU: Function untuk clear ALL logs (semua device)
 async function handleClearAllLogs() {
     const confirmText = '⚠️ DELETE ALL DATA FROM ALL DEVICES?\n\n' +
         'This will permanently delete:\n' +
@@ -442,10 +463,12 @@ async function handleClearAllLogs() {
     }
 
     try {
-        const authRes = await fetch(`${window.BASE_URL}/api/auth/logs`, { method: 'DELETE' });
+        const [authRes, paramRes] = await Promise.all([
+            fetch(`${window.BASE_URL}/api/auth/logs`, { method: 'DELETE' }),
+            fetch(`${window.BASE_URL}/api/param/logs`, { method: 'DELETE' })
+        ]);
+        
         const authData = await authRes.json();
-
-        const paramRes = await fetch(`${window.BASE_URL}/api/param/logs`, { method: 'DELETE' });
         const paramData = await paramRes.json();
 
         if (authData.success && paramData.success) {
@@ -454,39 +477,32 @@ async function handleClearAllLogs() {
 
             await deviceManager.loadDeviceStats(currentDevice);
             await deviceManager.loadDeviceHistory(currentDevice);
+            
+            // Reset badges
             document.getElementById('badgeEsp32cam').textContent = '0';
             document.getElementById('badgeRfid').textContent = '0';
             document.getElementById('badgeFingerprint').textContent = '0';
-            if (chartManager) {
-                chartManager.delayChart.data.labels = [];
-                chartManager.delayChart.data.datasets[0].data = [];
-                chartManager.throughputChart.data.labels = [];
-                chartManager.throughputChart.data.datasets[0].data = [];
-                chartManager.msgSizeChart.data.labels = [];
-                chartManager.msgSizeChart.data.datasets[0].data = [];
-                chartManager.delayChart.update();
-                chartManager.throughputChart.update();
-                chartManager.msgSizeChart.update();
-            }
+            
+            if (chartManager) chartManager.clearCharts();
         } else {
             showToast(`❌ Delete failed`, 'error');
         }
     } catch (error) {
         showToast(`❌ Delete failed: ${error.message}`, 'error');
-        console.error('Delete error:', error);
     }
 }
 
-// 🆕 TAMBAHAN BARU: Function Download Report
 async function handleDownloadReport() {
     try {
         const device = currentDevice.toUpperCase();
         const timestamp = new Date().toISOString().slice(0,10);
+        
         const [authRes, paramRes, statsRes] = await Promise.all([
             fetch(`${window.BASE_URL}/api/auth/logs/${currentDevice}`),
             fetch(`${window.BASE_URL}/api/param/logs/${currentDevice}`),
             fetch(`${window.BASE_URL}/api/auth/stats/${currentDevice}`)
         ]);
+        
         const authData = await authRes.json();
         const paramData = await paramRes.json();
         const statsData = await statsRes.json();
@@ -494,6 +510,7 @@ async function handleDownloadReport() {
         let csv = `SMART DOOR SECURITY SYSTEM - DEVICE REPORT\n`;
         csv += `Device: ${device}\nGenerated: ${new Date().toLocaleString('id-ID')}\n`;
         csv += `Total Auth Attempts: ${statsData.stats?.total || 0}\nSuccess: ${statsData.stats?.success || 0}\nFailed: ${statsData.stats?.failed || 0}\n\n`;
+        
         csv += `===== AUTHENTICATION LOGS =====\nTimestamp,Status,Method,User,Message\n`;
         if (authData.data) {
             authData.data.forEach(log => {
@@ -501,29 +518,33 @@ async function handleDownloadReport() {
                 csv += `${t},${log.status},${log.method || '-'},"${log.userName || 'N/A'}","${log.message || '-'}"\n`;
             });
         }
-        csv += `\n===== PARAMETER LOGS =====\nTimestamp,Delay(ms),Throughput(bps),Message Size(bytes),QoS\n`;
+        
+        csv += `\n===== PARAMETER LOGS =====\nTimestamp,Delay(ms),Throughput(bps),Message Size(bytes),Jitter(ms),Packet Loss(%),QoS\n`;
         if (paramData.data) {
             paramData.data.forEach(log => {
                 const t = new Date(log.timestamp).toLocaleString('id-ID');
-                csv += `${t},${log.delay},${log.throughput},${log.messageSize},${log.qos}\n`;
+                csv += `${t},${log.delay},${log.throughput},${log.messageSize},${log.jitter || 0},${log.packetLoss || 0},${log.qos}\n`;
             });
         }
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const link = document.createElement('a');
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        link.setAttribute('download', `Report_${device}_${timestamp}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
+        
+        downloadCSV(csv, `Report_${device}_${timestamp}.csv`);
         showToast('📄 Report downloaded successfully!', 'success');
     } catch (error) {
-        showToast('Download failed', 'error');
+        showToast('❌ Download failed', 'error');
     }
 }
-// END TAMBAHAN BARU
+
+function downloadCSV(content, filename) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
 
 async function handleLogout() {
     try {
@@ -541,7 +562,11 @@ function showToast(message, type = 'info') {
     const toast = document.getElementById('notificationToast');
     const toastMessage = document.getElementById('toastMessage');
     if (!toast || !toastMessage) return;
+    
     toastMessage.textContent = message;
     toast.className = `toast show ${type}`;
-    setTimeout(() => { toast.classList.remove('show'); }, 3000);
+    
+    setTimeout(() => { 
+        toast.classList.remove('show'); 
+    }, 3000);
 }

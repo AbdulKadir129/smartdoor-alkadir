@@ -34,6 +34,7 @@
 
     <main class="dashboard">
         <div class="container-main">
+            <!-- PANEL KONTROL -->
             <section class="panel-kontrol">
                 <h2 class="section-title">🎮 Panel Kontrol</h2>
                 <div class="control-grid">
@@ -55,8 +56,8 @@
                     </button>
                 </div>
 
-                <div class="delete-controls" style="margin-top: 20px;">
-                    <h3 class="section-subtitle" style="font-size: 14px; color: #fffdfd; margin-bottom: 10px; text-align: left;">🗑️ Data Management</h3>
+                <div class="delete-controls" style="margin-top: 24px;">
+                    <h3 class="section-subtitle">🗑️ Data Management</h3>
                     <div class="control-grid">
                         <button class="control-card delete-auth" id="btnClearAuthLogs">
                             <span class="control-icon">🗑️</span>
@@ -76,11 +77,12 @@
                         </button>
                     </div>
                 </div>
-                </section>
+            </section>
 
+            <!-- DEVICE SECTION -->
             <section class="device-section">
                 <div class="device-cards">
-                    <div class="device-card" data-device="esp32cam">
+                    <div class="device-card active" data-device="esp32cam">
                         <div class="device-badge" id="badgeEsp32cam">0</div>
                         <span class="device-icon">📷</span>
                         <span class="device-name">ESP32-CAM</span>
@@ -98,7 +100,9 @@
                 </div>
             </section>
 
+            <!-- STATISTICS SECTION - UPDATED WITH JITTER & PACKET LOSS -->
             <section class="statistics-section">
+                <h2 class="section-title">📊 Statistics Overview</h2>
                 <div class="stats-grid">
                     <div class="stat-box">
                         <div class="stat-label">TOTAL ACCESS</div>
@@ -130,11 +134,24 @@
                         <div class="stat-value" id="statMsgSize">0</div>
                         <div class="stat-unit">bytes</div>
                     </div>
+                    <!-- ✅ TAMBAHAN BARU: JITTER -->
+                    <div class="stat-box">
+                        <div class="stat-label">AVG JITTER</div>
+                        <div class="stat-value" id="statJitter">0</div>
+                        <div class="stat-unit">ms</div>
+                    </div>
+                    <!-- ✅ TAMBAHAN BARU: PACKET LOSS -->
+                    <div class="stat-box">
+                        <div class="stat-label">AVG PACKET LOSS</div>
+                        <div class="stat-value" id="statPacketLoss">0</div>
+                        <div class="stat-unit">%</div>
+                    </div>
                 </div>
             </section>
 
+            <!-- MQTT PARAMETERS -->
             <section class="mqtt-params-section">
-                <h2 class="section-title">📊 MQTT Parameters</h2>
+                <h2 class="section-title">📡 MQTT Parameters</h2>
                 <div class="params-detail-grid">
                     <div class="param-detail-card">
                         <div class="param-label">Payload</div>
@@ -160,25 +177,55 @@
                         <div class="param-label">QoS</div>
                         <div class="param-value" id="paramQos">1</div>
                     </div>
+                    <!-- ✅ TAMBAHAN BARU: JITTER PARAM -->
+                    <div class="param-detail-card">
+                        <div class="param-label">Jitter</div>
+                        <div class="param-value" id="paramJitter">- ms</div>
+                    </div>
+                    <!-- ✅ TAMBAHAN BARU: PACKET LOSS PARAM -->
+                    <div class="param-detail-card">
+                        <div class="param-label">Packet Loss</div>
+                        <div class="param-value" id="paramPacketLoss">- %</div>
+                    </div>
                 </div>
             </section>
 
+            <!-- CHART SECTION - UPDATED WITH 5 CHARTS -->
             <section class="chart-section">
                 <h2 class="section-title">📈 Real-time Network Analysis</h2>
-                <div class="chart-wrapper" style="position: relative; height: 250px; margin-bottom: 20px;">
-                    <h3 style="text-align: center; margin-bottom: 5px; font-size: 14px; color: #666;">Delay (ms)</h3>
+                
+                <!-- Delay Chart -->
+                <div class="chart-wrapper" style="height: 280px;">
+                    <h3>⏱️ Delay (ms)</h3>
                     <canvas id="delayChart"></canvas>
                 </div>
-                <div class="chart-wrapper" style="position: relative; height: 250px; margin-bottom: 20px;">
-                    <h3 style="text-align: center; margin-bottom: 5px; font-size: 14px; color: #666;">Throughput (bps)</h3>
+                
+                <!-- Throughput Chart -->
+                <div class="chart-wrapper" style="height: 280px;">
+                    <h3>🚀 Throughput (bps)</h3>
                     <canvas id="throughputChart"></canvas>
                 </div>
-                <div class="chart-wrapper" style="position: relative; height: 250px;">
-                    <h3 style="text-align: center; margin-bottom: 5px; font-size: 14px; color: #666;">Message Size (Bytes)</h3>
+                
+                <!-- Message Size Chart -->
+                <div class="chart-wrapper" style="height: 280px;">
+                    <h3>📦 Message Size (Bytes)</h3>
                     <canvas id="messageSizeChart"></canvas>
+                </div>
+                
+                <!-- ✅ TAMBAHAN BARU: Jitter Chart -->
+                <div class="chart-wrapper" style="height: 280px;">
+                    <h3>📉 Jitter (ms)</h3>
+                    <canvas id="jitterChart"></canvas>
+                </div>
+                
+                <!-- ✅ TAMBAHAN BARU: Packet Loss Chart -->
+                <div class="chart-wrapper" style="height: 280px;">
+                    <h3>📊 Packet Loss (%)</h3>
+                    <canvas id="packetLossChart"></canvas>
                 </div>
             </section>
 
+            <!-- ACTIVITY LOG -->
             <section class="activity-section">
                 <h2 class="section-title">📋 Activity Log</h2>
                 <div class="activity-log-container" id="activityLog">
@@ -188,6 +235,7 @@
         </div>
     </main>
 
+    <!-- MODAL ADD USER -->
     <div id="modalAddUser" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -224,10 +272,12 @@
         </div>
     </div>
 
+    <!-- TOAST NOTIFICATION -->
     <div id="notificationToast" class="toast">
         <span id="toastMessage"></span>
     </div>
 
+    <!-- SCRIPTS -->
     <script src="lib/chart.umd.js"></script>
     <script src="lib/mqttws31.min.js"></script>
     <script src="js/mqtt-client.js"></script>

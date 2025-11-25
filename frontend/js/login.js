@@ -1,15 +1,24 @@
 // ========================================
-// LOGIN.JS
+// LOGIN.JS - PERBAIKAN
 // Smart Door Security System - Login Handler
-// FINAL VERSION (RENDER API)
+// FIXED: BASE_URL consistency dengan main.js
 // ========================================
 
 console.log('🔐 Login.js loaded successfully');
 
-// Dapatkan BASE_URL dari main.js (jika ada) atau gunakan Render URL.
-// Karena login.js diakses sebelum main.js, kita hardcode Render URL di sini
-// sesuai dengan setting di main.js.
-const BASE_API_URL = 'https://smartdoor-alkadir.onrender.com/api/users/login'; 
+// ✅ PERBAIKAN: Gunakan window.BASE_URL untuk consistency
+// Fallback ke Render URL jika window.BASE_URL belum terdefinisi
+const getBaseURL = () => {
+    if (typeof window.BASE_URL !== 'undefined') {
+        return window.BASE_URL;
+    }
+    // Fallback ke Render URL
+    return 'https://smartdoor-alkadir.onrender.com';
+};
+
+const BASE_API_URL = `${getBaseURL()}/api/users/login`;
+
+console.log('🌐 Using API URL:', BASE_API_URL);
 
 // Wait for DOM to be fully loaded
 document.addEventListener('DOMContentLoaded', () => {
@@ -57,7 +66,7 @@ async function handleLogin(e) {
     
     console.log('');
     console.log('='.repeat(50));
-    console.log('🔑 LOGIN ATTEMPT STARTED');
+    console.log('🔒 LOGIN ATTEMPT STARTED');
     console.log('='.repeat(50));
 
     // Get form inputs
@@ -83,8 +92,8 @@ async function handleLogin(e) {
 
     // Validate empty fields
     if (!username || !password) {
-        console.warn('⚠️  Validation failed: Empty fields');
-        showMessage('⚠️  Please enter both username and password', 'error');
+        console.warn('⚠️ Validation failed: Empty fields');
+        showMessage('⚠️ Please enter both username and password', 'error');
         return;
     }
 
@@ -99,14 +108,13 @@ async function handleLogin(e) {
     try {
         console.log('');
         console.log('📤 Sending login request to server...');
-        // 🌟 PERBAIKAN: Ganti Endpoint ke URL Render 24 Jam
         console.log('   Endpoint:', BASE_API_URL);
         console.log('   Method: POST');
 
         const requestBody = { username, password };
         console.log('   Request body:', { username, password: '***' });
 
-        // 🌟 PERBAIKAN: Menggunakan URL Render yang sudah didefinisikan
+        // ✅ PERBAIKAN: Menggunakan BASE_API_URL yang sudah dinamis
         const response = await fetch(BASE_API_URL, {
             method: 'POST',
             headers: {
@@ -156,7 +164,7 @@ async function handleLogin(e) {
             console.log('🔄 Redirecting to dashboard in 1 second...');
             
             setTimeout(() => {
-                console.log('➡️  Redirecting to: index.html');
+                console.log('➡️ Redirecting to: index.html');
                 window.location.href = 'index.html';
             }, 1000);
 
@@ -197,7 +205,10 @@ async function handleLogin(e) {
         let errorMessage = '❌ Connection error. ';
         
         if (error.message.includes('Failed to fetch')) {
-            errorMessage += 'Cannot connect to server. Please check your Render service status.';
+            errorMessage += 'Cannot connect to server. Please check:\n';
+            errorMessage += '• Server is running\n';
+            errorMessage += '• Network connection\n';
+            errorMessage += '• CORS settings';
         } else {
             errorMessage += error.message;
         }
@@ -251,7 +262,7 @@ function checkExistingSession() {
     const userName = sessionStorage.getItem('userName');
     
     if (userName) {
-        console.log('ℹ️  Existing session found for:', userName);
+        console.log('ℹ️ Existing session found for:', userName);
         console.log('   Redirecting to dashboard...');
         window.location.href = 'index.html';
     }

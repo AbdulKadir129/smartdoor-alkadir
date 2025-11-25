@@ -55,7 +55,6 @@
                         <span class="control-text">EXPORT LOGS</span>
                     </button>
                 </div>
-
                 <div class="delete-controls" style="margin-top: 24px;">
                     <h3 class="section-subtitle">🗑️ Data Management</h3>
                     <div class="control-grid">
@@ -100,9 +99,12 @@
                 </div>
             </section>
 
-            <!-- ✅ TAMBAHAN BARU: LAST RECOGNIZED FACE PANEL -->
+            <!-- LAST RECOGNIZED FACE PANEL + LOG BUTTON -->
             <section class="last-face-section">
-                <h2 class="section-title">👤 Last Recognized Face</h2>
+                <h2 class="section-title">
+                  👤 Last Recognized Face
+                  <button id="btnShowHistory" class="btn-show-history" style="margin-left:12px;">Lihat Log</button>
+                </h2>
                 <div class="last-face-container">
                     <div class="face-image-wrapper">
                         <img id="lastFaceImage" src="" alt="No face recognized yet" style="display: none;">
@@ -132,7 +134,18 @@
                 </div>
             </section>
 
-            <!-- STATISTICS SECTION - UPDATED WITH JITTER & PACKET LOSS -->
+            <!-- MODAL FACE HISTORY LOG -->
+            <div id="faceHistoryModal" class="modal">
+                <div class="modal-content" style="max-width:500px;">
+                    <div class="modal-header">
+                        <h2>Face Recognition Log</h2>
+                        <span class="modal-close" id="closeHistoryModal">&times;</span>
+                    </div>
+                    <div id="faceRecognitionHistory" class="face-history-log"></div>
+                </div>
+            </div>
+
+            <!-- STATISTICS SECTION -->
             <section class="statistics-section">
                 <h2 class="section-title">📊 Statistics Overview</h2>
                 <div class="stats-grid">
@@ -166,13 +179,11 @@
                         <div class="stat-value" id="statMsgSize">0</div>
                         <div class="stat-unit">bytes</div>
                     </div>
-                    <!-- ✅ TAMBAHAN BARU: JITTER -->
                     <div class="stat-box">
                         <div class="stat-label">AVG JITTER</div>
                         <div class="stat-value" id="statJitter">0</div>
                         <div class="stat-unit">ms</div>
                     </div>
-                    <!-- ✅ TAMBAHAN BARU: PACKET LOSS -->
                     <div class="stat-box">
                         <div class="stat-label">AVG PACKET LOSS</div>
                         <div class="stat-value" id="statPacketLoss">0</div>
@@ -209,12 +220,10 @@
                         <div class="param-label">QoS</div>
                         <div class="param-value" id="paramQos">1</div>
                     </div>
-                    <!-- ✅ TAMBAHAN BARU: JITTER PARAM -->
                     <div class="param-detail-card">
                         <div class="param-label">Jitter</div>
                         <div class="param-value" id="paramJitter">- ms</div>
                     </div>
-                    <!-- ✅ TAMBAHAN BARU: PACKET LOSS PARAM -->
                     <div class="param-detail-card">
                         <div class="param-label">Packet Loss</div>
                         <div class="param-value" id="paramPacketLoss">- %</div>
@@ -222,35 +231,26 @@
                 </div>
             </section>
 
-            <!-- CHART SECTION - UPDATED WITH 5 CHARTS -->
+            <!-- CHART SECTION -->
             <section class="chart-section">
                 <h2 class="section-title">📈 Real-time Network Analysis</h2>
                 
-                <!-- Delay Chart -->
                 <div class="chart-wrapper" style="height: 280px;">
                     <h3>⏱️ Delay (ms)</h3>
                     <canvas id="delayChart"></canvas>
                 </div>
-                
-                <!-- Throughput Chart -->
                 <div class="chart-wrapper" style="height: 280px;">
                     <h3>🚀 Throughput (bps)</h3>
                     <canvas id="throughputChart"></canvas>
                 </div>
-                
-                <!-- Message Size Chart -->
                 <div class="chart-wrapper" style="height: 280px;">
                     <h3>📦 Message Size (Bytes)</h3>
                     <canvas id="messageSizeChart"></canvas>
                 </div>
-                
-                <!-- ✅ TAMBAHAN BARU: Jitter Chart -->
                 <div class="chart-wrapper" style="height: 280px;">
                     <h3>📉 Jitter (ms)</h3>
                     <canvas id="jitterChart"></canvas>
                 </div>
-                
-                <!-- ✅ TAMBAHAN BARU: Packet Loss Chart -->
                 <div class="chart-wrapper" style="height: 280px;">
                     <h3>📊 Packet Loss (%)</h3>
                     <canvas id="packetLossChart"></canvas>

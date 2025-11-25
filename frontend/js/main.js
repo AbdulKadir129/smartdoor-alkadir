@@ -1,9 +1,8 @@
 // ========================================
-// MAIN.JS - IMPROVED VERSION + FACE IMAGE PANEL
+// MAIN.JS - FACE IMAGE PANEL + FACE LOG MODAL
 // Smart Door Security System
 // ========================================
 
-// Configuration
 window.BASE_URL = 'https://smartdoor-alkadir.onrender.com';
 
 const MQTT_CONFIG = {
@@ -23,49 +22,49 @@ let chartManager = null;
 let deviceManager = null;
 let currentDevice = 'esp32cam';
 
+// Log histori recognized face
+let faceHistoryLog = [];
+const MAX_HISTORY = 15;
+
+// ========================================
+// INITIALIZATION
+// ========================================
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 Initializing Smart Door Dashboard...');
-
     const userName = sessionStorage.getItem('userName');
     if (!userName) {
         window.location.href = 'login.html';
         return;
     }
-
     const userNameEl = document.getElementById('userName');
     if (userNameEl) userNameEl.textContent = userName;
-
     deviceManager = new DeviceManager();
     chartManager = new ChartManager();
-
     initMQTT();
     setupEventListeners();
     deviceManager.switchDevice('esp32cam');
+    setupHistoryModal();
 });
 
-// ================================
-// MQTT CONNECTION AND HANDLERS
-// ================================
+// ========================================
+// MQTT INITIALIZATION
+// ========================================
 function initMQTT() {
     mqttClient = new MQTTClient(MQTT_CONFIG.broker, MQTT_CONFIG.port);
-
     mqttClient.on('connect', () => {
         updateMQTTStatus(true);
         mqttClient.subscribe(MQTT_CONFIG.topics.auth, 1);
         mqttClient.subscribe(MQTT_CONFIG.topics.param, 1);
         showToast('✅ Connected to HiveMQ Cloud', 'success');
     });
-
     mqttClient.on('connectionLost', (response) => {
         updateMQTTStatus(false);
         console.error("Connection lost detail:", response.errorMessage);
         showToast('❌ MQTT Connection Lost', 'error');
     });
-
     mqttClient.on('messageArrived', (message) => {
         handleMQTTMessage(message);
     });
-
     mqttClient.connect(MQTT_CONFIG.username, MQTT_CONFIG.password, true);
 }
 
@@ -74,7 +73,6 @@ function updateMQTTStatus(connected) {
     if (!statusEl) return;
     const dotEl = statusEl.querySelector('.status-dot');
     const textEl = statusEl.querySelector('.status-text');
-    
     if (connected) {
         dotEl.classList.remove('disconnected');
         dotEl.classList.add('connected');
@@ -86,17 +84,15 @@ function updateMQTTStatus(connected) {
     }
 }
 
-// ================================
+// ========================================
 // MQTT MESSAGE HANDLER
-// ================================
+// ========================================
 function handleMQTTMessage(message) {
     const topic = message.destinationName;
     const payload = message.payloadString;
-
     try {
         const data = JSON.parse(payload);
         if (data.device && data.device !== currentDevice) return;
-
         if (topic === MQTT_CONFIG.topics.auth) {
             handleAuthMessage(data);
         } else if (topic === MQTT_CONFIG.topics.param) {
@@ -107,9 +103,9 @@ function handleMQTTMessage(message) {
     }
 }
 
-// ================================
-// LAST FACE PANEL UPDATER
-// ================================
+// =============================
+// FACE PANEL + HISTORY LOG
+// =============================
 function updateLastFacePanel(data) {
     const faceImg = document.getElementById('lastFaceImage');
     const faceName = document.getElementById('lastFaceName');
@@ -117,7 +113,12 @@ function updateLastFacePanel(data) {
     const faceStatus = document.getElementById('lastFaceStatus');
     const faceTime = document.getElementById('lastFaceTime');
     const placeholder = document.getElementById('noFacePlaceholder');
-
+    let timeText = "-";
+    if (data.timestamp) {
+        timeText = new Date(data.timestamp).toLocaleString('id-ID');
+    } else {
+        timeText = new Date().toLocaleString('id-ID');
+    }
     if (data.image && data.status) {
         faceImg.style.display = 'block';
         placeholder.style.display = 'none';
@@ -125,7 +126,7 @@ function updateLastFacePanel(data) {
         faceName.textContent = data.userName || "-";
         faceId.textContent = data.userId || "-";
         faceStatus.textContent = data.status || "-";
-        faceTime.textContent = new Date().toLocaleString('id-ID');
+        faceTime.textContent = timeText;
     } else {
         faceImg.style.display = 'none';
         placeholder.style.display = 'block';
@@ -136,28 +137,71 @@ function updateLastFacePanel(data) {
     }
 }
 
-// ================================
+function renderFaceRecognitionHistory() {
+    const historyDiv = document.getElementById('faceRecognitionHistory');
+    if (!historyDiv) return;
+    if (faceHistoryLog.length === 0) {
+        historyDiv.innerHTML = `<div class="no-activity">Belum ada history face recognition.</div>`;
+        return;
+    }
+    historyDiv.innerHTML = faceHistoryLog.map(log => `
+        <div class="face-history-item">
+            <img src="data:image/jpeg;base64,${log.image}" alt="face">
+            <div class="face-history-meta">
+                <div class="face-history-name">${log.userName} <span style="color:#888;">(${log.userId})</span></div>
+                <div class="face-history-time">${log.time}</div>
+                <div class="face-history-status ${log.status}">${log.status}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function setupHistoryModal() {
+    const btnOpen = document.getElementById('btnShowHistory');
+    const modal = document.getElementById('faceHistoryModal');
+    const btnClose = document.getElementById('closeHistoryModal');
+    if (!btnOpen || !modal || !btnClose) return;
+    btnOpen.onclick = () => {
+        renderFaceRecognitionHistory();
+        modal.classList.add('show');
+    };
+    btnClose.onclick = () => { modal.classList.remove('show'); };
+    window.onclick = function(e) {
+        if (e.target === modal) modal.classList.remove('show');
+    };
+}
+
+// ========================================
 // AUTH, PARAM, LOGIC
-// ================================
+// ========================================
 async function handleAuthMessage(data) {
     try {
+        // Log recognized face kalau esp32cam + image
+        if (data.device === 'esp32cam' && data.image) {
+            faceHistoryLog.unshift({
+                time: data.timestamp ? new Date(data.timestamp).toLocaleString('id-ID') : new Date().toLocaleString('id-ID'),
+                userName: data.userName || "-",
+                userId: data.userId || "-",
+                image: data.image,
+                status: data.status
+            });
+            if (faceHistoryLog.length > MAX_HISTORY) faceHistoryLog.pop();
+        }
+        // Panel always update
         if (data.device === 'esp32cam') {
             updateLastFacePanel(data);
         }
-
+        // Simpan log ke backend 
         const response = await fetch(`${window.BASE_URL}/api/auth/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
-
         const result = await response.json();
-
         if (result.success) {
             await deviceManager.loadDeviceStats(data.device);
             await deviceManager.loadDeviceHistory(data.device);
             updateDeviceBadge(data.device);
-
             const icon = data.status === 'success' ? '✅' : '❌';
             const type = data.status === 'success' ? 'success' : 'error';
             const msg = data.message || (data.status === 'success' ? 'Authentication successful' : 'Authentication failed');
@@ -167,86 +211,69 @@ async function handleAuthMessage(data) {
         console.error('❌ Error handling auth message:', error);
     }
 }
-
 async function handleParamMessage(data) {
     try {
         const arrivalTime = Date.now();
         const sentTime = data.sentTime || arrivalTime;
         let networkDelay = arrivalTime - sentTime;
-
         if (networkDelay <= 0 || networkDelay > 5000) {
             networkDelay = Math.floor(Math.random() * (100 - 20 + 1) + 20);
         }
-
         const msgSize = parseInt(data.messageSize) || 0;
         const safeDelay = networkDelay === 0 ? 1 : networkDelay;
         const throughput = (msgSize * 8 * 1000) / safeDelay;
-
         const jitter = data.jitter || 0;
         const packetLoss = data.packetLoss || 0;
-
         data.delay = networkDelay;
         data.throughput = throughput.toFixed(2);
         data.jitter = jitter;
         data.packetLoss = packetLoss;
-
         updateParamDisplay(data);
-
         if (chartManager) {
             chartManager.updateChart(arrivalTime, networkDelay, throughput, msgSize, jitter, packetLoss);
         }
-
         const logData = {
             ...data,
-            payload: data.payload || "Network Data", 
+            payload: data.payload || "Network Data",
             delay: networkDelay,
             throughput: throughput
         };
-
         const response = await fetch(`${window.BASE_URL}/api/param/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(logData)
         });
-
         const result = await response.json();
         if (result.success && result.data) {
             data.jitter = result.data.jitter || 0;
             data.packetLoss = result.data.packetLoss || 0;
             updateParamDisplay(data);
         }
-
         await deviceManager.loadDeviceStats(data.device);
-
     } catch (error) {
         console.error('❌ Error handling param message:', error);
     }
 }
-
 function updateParamDisplay(data) {
     const params = {
         paramPayload: data.payload || '-',
         paramTopic: data.topic || '-',
         paramDelay: `${data.delay || 0} ms`,
-        paramThroughput: `${data.throughput || 0} bps`, 
+        paramThroughput: `${data.throughput || 0} bps`,
         paramSize: `${data.messageSize || 0} bytes`,
         paramQos: data.qos || 1,
         paramJitter: `${data.jitter || 0} ms`,
         paramPacketLoss: `${data.packetLoss || 0} %`
     };
-
     Object.keys(params).forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.textContent = params[id];
             el.style.transform = 'scale(1.05)';
-            setTimeout(() => {
-                el.style.transform = 'scale(1)';
-            }, 150);
+            setTimeout(() => { el.style.transform = 'scale(1)'; }, 150);
         }
     });
 }
-
 function updateDeviceBadge(device) {
     const badges = {
         'esp32cam': 'badgeEsp32cam',
@@ -260,16 +287,14 @@ function updateDeviceBadge(device) {
             const currentCount = parseInt(badge.textContent) || 0;
             badge.textContent = currentCount + 1;
             badge.style.transform = 'scale(1.3)';
-            setTimeout(() => {
-                badge.style.transform = 'scale(1)';
-            }, 200);
+            setTimeout(() => { badge.style.transform = 'scale(1)'; }, 200);
         }
     }
 }
 
-// ================================
+// ========================================
 // EVENT LISTENERS
-// ================================
+// ========================================
 function setupEventListeners() {
     document.querySelectorAll('.device-card').forEach(card => {
         card.addEventListener('click', function() {
@@ -283,19 +308,15 @@ function setupEventListeners() {
             }
         });
     });
-
     document.getElementById('btnBukaPintu')?.addEventListener('click', () => handleDoorControl('open'));
     document.getElementById('btnKunciPintu')?.addEventListener('click', () => handleDoorControl('lock'));
     document.getElementById('btnTambahUser')?.addEventListener('click', handleAddUser);
     document.getElementById('btnExportLogs')?.addEventListener('click', handleExportLogs);
-
     document.getElementById('btnClearAuthLogs')?.addEventListener('click', () => handleClearLogs('auth'));
     document.getElementById('btnClearParamLogs')?.addEventListener('click', () => handleClearLogs('param'));
     document.getElementById('btnClearAllLogs')?.addEventListener('click', handleClearAllLogs);
     document.getElementById('btnDownloadReport')?.addEventListener('click', handleDownloadReport);
-
     document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
-
     const modal = document.getElementById('modalAddUser');
     const modalClose = modal?.querySelector('.modal-close');
     modalClose?.addEventListener('click', () => { modal.style.display = 'none'; });
@@ -306,7 +327,7 @@ function setupEventListeners() {
 }
 
 // ===============
-// CONTROL HANDLERS
+// CONTROL & EXPORT DAN TOAST TETAP SAMA
 // ===============
 function handleDoorControl(action) {
     if (!mqttClient || !mqttClient.isConnected) {
@@ -318,7 +339,6 @@ function handleDoorControl(action) {
     const actionText = action === 'open' ? 'membuka' : 'mengunci';
     showToast(`🚪 Perintah ${actionText} pintu terkirim`, 'info');
 }
-
 function handleAddUser() {
     const modal = document.getElementById('modalAddUser');
     if (modal) {
@@ -328,20 +348,17 @@ function handleAddUser() {
         document.getElementById('groupFingerId').style.display = currentDevice === 'fingerprint' ? 'block' : 'none';
     }
 }
-
 async function handleSubmitUser(e) {
     e.preventDefault();
     const username = document.getElementById('inputUsername').value;
     const password = document.getElementById('inputPassword').value;
     const userData = { username, password, device: currentDevice, userType: 'device_user' };
-
     if (currentDevice === 'esp32cam')
         userData.faceId = document.getElementById('inputFaceId').value;
     else if (currentDevice === 'rfid')
         userData.rfidUid = document.getElementById('inputRfidUid').value;
     else if (currentDevice === 'fingerprint')
         userData.fingerId = document.getElementById('inputFingerId').value;
-
     try {
         const response = await fetch(`${window.BASE_URL}/api/users/add`, {
             method: 'POST',
@@ -362,7 +379,6 @@ async function handleSubmitUser(e) {
         showToast('❌ Error adding user', 'error');
     }
 }
-
 async function handleExportLogs() {
     try {
         const [authRes, paramRes] = await Promise.all([
@@ -391,7 +407,6 @@ async function handleExportLogs() {
         showToast('❌ Export failed', 'error');
     }
 }
-
 async function handleClearLogs(type) {
     const logType = type === 'auth' ? 'Authentication' : 'Parameter';
     const deviceName = currentDevice.toUpperCase();
@@ -415,7 +430,6 @@ async function handleClearLogs(type) {
         showToast(`❌ Delete failed: ${error.message}`, 'error');
     }
 }
-
 async function handleClearAllLogs() {
     const confirmText = '⚠️ DELETE ALL DATA FROM ALL DEVICES?\n\n' +
         'This will permanently delete:\n' +
@@ -451,7 +465,6 @@ async function handleClearAllLogs() {
         showToast(`❌ Delete failed: ${error.message}`, 'error');
     }
 }
-
 async function handleDownloadReport() {
     try {
         const device = currentDevice.toUpperCase();
@@ -487,7 +500,6 @@ async function handleDownloadReport() {
         showToast('❌ Download failed', 'error');
     }
 }
-
 function downloadCSV(content, filename) {
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -499,7 +511,6 @@ function downloadCSV(content, filename) {
     link.click();
     document.body.removeChild(link);
 }
-
 async function handleLogout() {
     try {
         await fetch(`${window.BASE_URL}/api/users/logout`, { method: 'POST' });
@@ -511,7 +522,6 @@ async function handleLogout() {
         window.location.href = 'login.html';
     }
 }
-
 function showToast(message, type = 'info') {
     const toast = document.getElementById('notificationToast');
     const toastMessage = document.getElementById('toastMessage');

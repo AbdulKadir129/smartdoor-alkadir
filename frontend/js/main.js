@@ -11,7 +11,7 @@ const MQTT_CONFIG = {
     broker: '4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud',
     port: 8884,
     username: 'Alkadir',
-    password: 'Alkadir29',
+    password: 'Alkadir123',
     topics: {
         auth: 'smartdoor/auth',
         param: 'smartdoor/param',

@@ -1,12 +1,14 @@
 // ========================================
-// MAIN.JS - FACE IMAGE PANEL + FACE LOG MODAL
+// MAIN.JS - 100% REAL DATA VERSION
 // Smart Door Security System
+// Untuk Analisis Jaringan MQTT (Skripsi)
+// TANPA fake/random data
 // ========================================
 
 window.BASE_URL = 'https://smartdoor-alkadir.onrender.com';
 
 const MQTT_CONFIG = {
-    broker: '183611ea7b1b4543baa31e5dc5cf0fc3.s1.eu.hivemq.cloud',
+    broker: '4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud',
     port: 8884,
     username: 'smartdoor',
     password: 'Alkadir29',
@@ -22,15 +24,27 @@ let chartManager = null;
 let deviceManager = null;
 let currentDevice = 'esp32cam';
 
-// Log histori recognized face
 let faceHistoryLog = [];
 const MAX_HISTORY = 15;
+
+let realtimeStats = {
+    esp32cam: { total: 0, success: 0, failed: 0, paramCount: 0, totalDelay: 0, totalThroughput: 0, totalMsgSize: 0, totalJitter: 0, totalPacketLoss: 0 },
+    rfid: { total: 0, success: 0, failed: 0, paramCount: 0, totalDelay: 0, totalThroughput: 0, totalMsgSize: 0, totalJitter: 0, totalPacketLoss: 0 },
+    fingerprint: { total: 0, success: 0, failed: 0, paramCount: 0, totalDelay: 0, totalThroughput: 0, totalMsgSize: 0, totalJitter: 0, totalPacketLoss: 0 }
+};
+
+// Untuk tracking delay sebelumnya (menghitung jitter di frontend)
+let lastDelayPerDevice = {
+    esp32cam: null,
+    rfid: null,
+    fingerprint: null
+};
 
 // ========================================
 // INITIALIZATION
 // ========================================
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 Initializing Smart Door Dashboard...');
+    console.log('🚀 Initializing Smart Door Dashboard (100% Real Data)...');
     const userName = sessionStorage.getItem('userName');
     if (!userName) {
         window.location.href = 'login.html';
@@ -38,16 +52,51 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     const userNameEl = document.getElementById('userName');
     if (userNameEl) userNameEl.textContent = userName;
+    
     deviceManager = new DeviceManager();
     chartManager = new ChartManager();
+    
     initMQTT();
     setupEventListeners();
+    initializeRealtimeStats();
     deviceManager.switchDevice('esp32cam');
     setupHistoryModal();
 });
 
+async function initializeRealtimeStats() {
+    console.log('📊 Initializing real-time statistics...');
+    const devices = ['esp32cam', 'rfid', 'fingerprint'];
+    
+    for (const device of devices) {
+        try {
+            const authRes = await fetch(\`\${window.BASE_URL}/api/auth/stats/\${device}\`);
+            const authData = await authRes.json();
+            if (authData.success) {
+                realtimeStats[device].total = authData.stats.total || 0;
+                realtimeStats[device].success = authData.stats.success || 0;
+                realtimeStats[device].failed = authData.stats.failed || 0;
+            }
+            
+            const paramRes = await fetch(\`\${window.BASE_URL}/api/param/stats/\${device}\`);
+            const paramData = await paramRes.json();
+            if (paramData.success) {
+                realtimeStats[device].paramCount = paramData.stats.totalMessages || 0;
+                realtimeStats[device].avgDelay = parseFloat(paramData.stats.avgDelay) || 0;
+                realtimeStats[device].avgThroughput = parseFloat(paramData.stats.avgThroughput) || 0;
+                realtimeStats[device].avgMsgSize = parseFloat(paramData.stats.avgMessageSize) || 0;
+                realtimeStats[device].avgJitter = parseFloat(paramData.stats.avgJitter) || 0;
+                realtimeStats[device].avgPacketLoss = parseFloat(paramData.stats.avgPacketLoss) || 0;
+            }
+            updateDeviceBadgeCount(device, realtimeStats[device].total);
+        } catch (error) {
+            console.error(\`❌ Error loading stats for \${device}:\`, error);
+        }
+    }
+    console.log('✅ Real-time statistics initialized');
+}
+
 // ========================================
-// MQTT INITIALIZATION
+// MQTT
 // ========================================
 function initMQTT() {
     mqttClient = new MQTTClient(MQTT_CONFIG.broker, MQTT_CONFIG.port);
@@ -59,7 +108,6 @@ function initMQTT() {
     });
     mqttClient.on('connectionLost', (response) => {
         updateMQTTStatus(false);
-        console.error("Connection lost detail:", response.errorMessage);
         showToast('❌ MQTT Connection Lost', 'error');
     });
     mqttClient.on('messageArrived', (message) => {
@@ -84,15 +132,11 @@ function updateMQTTStatus(connected) {
     }
 }
 
-// ========================================
-// MQTT MESSAGE HANDLER
-// ========================================
 function handleMQTTMessage(message) {
     const topic = message.destinationName;
     const payload = message.payloadString;
     try {
         const data = JSON.parse(payload);
-        if (data.device && data.device !== currentDevice) return;
         if (topic === MQTT_CONFIG.topics.auth) {
             handleAuthMessage(data);
         } else if (topic === MQTT_CONFIG.topics.param) {
@@ -103,9 +147,9 @@ function handleMQTTMessage(message) {
     }
 }
 
-// =============================
-// FACE PANEL + HISTORY LOG
-// =============================
+// ========================================
+// FACE PANEL
+// ========================================
 function updateLastFacePanel(data) {
     const faceImg = document.getElementById('lastFaceImage');
     const faceName = document.getElementById('lastFaceName');
@@ -113,12 +157,9 @@ function updateLastFacePanel(data) {
     const faceStatus = document.getElementById('lastFaceStatus');
     const faceTime = document.getElementById('lastFaceTime');
     const placeholder = document.getElementById('noFacePlaceholder');
-    let timeText = "-";
-    if (data.timestamp) {
-        timeText = new Date(data.timestamp).toLocaleString('id-ID');
-    } else {
-        timeText = new Date().toLocaleString('id-ID');
-    }
+    
+    let timeText = data.timestamp ? new Date(data.timestamp).toLocaleString('id-ID') : new Date().toLocaleString('id-ID');
+    
     if (data.image && data.status) {
         faceImg.style.display = 'block';
         placeholder.style.display = 'none';
@@ -130,10 +171,6 @@ function updateLastFacePanel(data) {
     } else {
         faceImg.style.display = 'none';
         placeholder.style.display = 'block';
-        faceName.textContent = "-";
-        faceId.textContent = "-";
-        faceStatus.textContent = "-";
-        faceTime.textContent = "-";
     }
 }
 
@@ -141,7 +178,7 @@ function renderFaceRecognitionHistory() {
     const historyDiv = document.getElementById('faceRecognitionHistory');
     if (!historyDiv) return;
     if (faceHistoryLog.length === 0) {
-        historyDiv.innerHTML = `<div class="no-activity">Belum ada history face recognition.</div>`;
+        historyDiv.innerHTML = '<div class="no-activity">Belum ada history face recognition.</div>';
         return;
     }
     historyDiv.innerHTML = faceHistoryLog.map(log => `
@@ -161,23 +198,25 @@ function setupHistoryModal() {
     const modal = document.getElementById('faceHistoryModal');
     const btnClose = document.getElementById('closeHistoryModal');
     if (!btnOpen || !modal || !btnClose) return;
-    btnOpen.onclick = () => {
-        renderFaceRecognitionHistory();
-        modal.classList.add('show');
-    };
+    btnOpen.onclick = () => { renderFaceRecognitionHistory(); modal.classList.add('show'); };
     btnClose.onclick = () => { modal.classList.remove('show'); };
-    window.onclick = function(e) {
-        if (e.target === modal) modal.classList.remove('show');
-    };
+    window.onclick = (e) => { if (e.target === modal) modal.classList.remove('show'); };
 }
 
 // ========================================
-// AUTH, PARAM, LOGIC
+// AUTH HANDLER - REAL-TIME
 // ========================================
 async function handleAuthMessage(data) {
     try {
-        // Log recognized face kalau esp32cam + image
-        if (data.device === 'esp32cam' && data.image) {
+        const device = data.device || 'esp32cam';
+        
+        realtimeStats[device].total++;
+        if (data.status === 'success') realtimeStats[device].success++;
+        else realtimeStats[device].failed++;
+        
+        updateDeviceBadgeCount(device, realtimeStats[device].total);
+        
+        if (device === 'esp32cam' && data.image) {
             faceHistoryLog.unshift({
                 time: data.timestamp ? new Date(data.timestamp).toLocaleString('id-ID') : new Date().toLocaleString('id-ID'),
                 userName: data.userName || "-",
@@ -187,79 +226,214 @@ async function handleAuthMessage(data) {
             });
             if (faceHistoryLog.length > MAX_HISTORY) faceHistoryLog.pop();
         }
-        // Panel always update
-        if (data.device === 'esp32cam') {
-            updateLastFacePanel(data);
+        
+        if (device === 'esp32cam') updateLastFacePanel(data);
+        
+        if (device === currentDevice) {
+            updateStatisticsDisplay(device);
+            addActivityLogItem(data);
         }
-        // Simpan log ke backend 
+        
         const response = await fetch(`${window.BASE_URL}/api/auth/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(data)
         });
         const result = await response.json();
+        
         if (result.success) {
-            await deviceManager.loadDeviceStats(data.device);
-            await deviceManager.loadDeviceHistory(data.device);
-            updateDeviceBadge(data.device);
             const icon = data.status === 'success' ? '✅' : '❌';
             const type = data.status === 'success' ? 'success' : 'error';
-            const msg = data.message || (data.status === 'success' ? 'Authentication successful' : 'Authentication failed');
-            showToast(`${icon} ${msg}`, type);
+            showToast(`${icon} [${device.toUpperCase()}] ${data.message || data.status}`, type);
         }
     } catch (error) {
         console.error('❌ Error handling auth message:', error);
     }
 }
+
+// ========================================
+// PARAM HANDLER - 100% REAL DATA
+// TANPA FAKE/RANDOM VALUES
+// ========================================
 async function handleParamMessage(data) {
     try {
-        const arrivalTime = Date.now();
-        const sentTime = data.sentTime || arrivalTime;
-        let networkDelay = arrivalTime - sentTime;
-        if (networkDelay <= 0 || networkDelay > 5000) {
-            networkDelay = Math.floor(Math.random() * (100 - 20 + 1) + 20);
-        }
+        const device = data.device || 'esp32cam';
+        
+        // ✅ REAL: Waktu browser menerima pesan MQTT
+        const browserReceiveTime = Date.now();
+        
+        // ✅ REAL: Waktu ESP32 mengirim (dari payload)
+        const espSentTime = data.sentTime || null;
+        
+        // ✅ REAL: Message Size
         const msgSize = parseInt(data.messageSize) || 0;
-        const safeDelay = networkDelay === 0 ? 1 : networkDelay;
-        const throughput = (msgSize * 8 * 1000) / safeDelay;
-        const jitter = data.jitter || 0;
-        const packetLoss = data.packetLoss || 0;
-        data.delay = networkDelay;
-        data.throughput = throughput.toFixed(2);
-        data.jitter = jitter;
-        data.packetLoss = packetLoss;
-        updateParamDisplay(data);
-        if (chartManager) {
-            chartManager.updateChart(arrivalTime, networkDelay, throughput, msgSize, jitter, packetLoss);
+        
+        // ========================================
+        // KALKULASI 100% REAL - TANPA FAKE DATA
+        // ========================================
+        
+        // 1. DELAY (ms) - Waktu transmisi ESP32 → Browser
+        let networkDelay = 0;
+        if (espSentTime && espSentTime > 0) {
+            networkDelay = browserReceiveTime - espSentTime;
+            // Jika negatif (clock tidak sinkron), gunakan absolut
+            // TIDAK diganti random/fake
+            if (networkDelay < 0) {
+                console.warn(`⚠️ Negative delay: ${networkDelay}ms - Clock sync issue`);
+                networkDelay = Math.abs(networkDelay);
+            }
         }
+        
+        // 2. THROUGHPUT (bps)
+        let throughput = 0;
+        if (networkDelay > 0 && msgSize > 0) {
+            throughput = (msgSize * 8 * 1000) / networkDelay;
+        }
+        
+        // 3. JITTER (ms) - Variasi delay
+        let jitter = 0;
+        if (lastDelayPerDevice[device] !== null && networkDelay > 0) {
+            jitter = Math.abs(networkDelay - lastDelayPerDevice[device]);
+        }
+        if (networkDelay > 0) {
+            lastDelayPerDevice[device] = networkDelay;
+        }
+        
+        // Update data
+        data.delay = Math.round(networkDelay);
+        data.throughput = Math.round(throughput);
+        data.jitter = Math.round(jitter);
+        data.packetLoss = 0; // Akan diupdate dari backend
+        
+        // Update stats
+        if (networkDelay > 0) {
+            realtimeStats[device].paramCount++;
+            realtimeStats[device].totalDelay = (realtimeStats[device].totalDelay || 0) + networkDelay;
+            realtimeStats[device].totalThroughput = (realtimeStats[device].totalThroughput || 0) + throughput;
+            realtimeStats[device].totalMsgSize = (realtimeStats[device].totalMsgSize || 0) + msgSize;
+            realtimeStats[device].totalJitter = (realtimeStats[device].totalJitter || 0) + jitter;
+            
+            const count = realtimeStats[device].paramCount;
+            realtimeStats[device].avgDelay = realtimeStats[device].totalDelay / count;
+            realtimeStats[device].avgThroughput = realtimeStats[device].totalThroughput / count;
+            realtimeStats[device].avgMsgSize = realtimeStats[device].totalMsgSize / count;
+            realtimeStats[device].avgJitter = realtimeStats[device].totalJitter / count;
+        }
+        
+        // Update display
+        if (device === currentDevice) {
+            updateParamDisplay(data);
+            if (chartManager && networkDelay > 0) {
+                chartManager.updateChart(browserReceiveTime, networkDelay, throughput, msgSize, jitter, 0);
+            }
+        }
+        
+        // Kirim ke backend untuk hitung packet loss
         const logData = {
-            ...data,
-            payload: data.payload || "Network Data",
-            delay: networkDelay,
-            throughput: throughput
+            device, payload: data.payload || "MQTT Data", topic: data.topic || MQTT_CONFIG.topics.param,
+            messageSize: msgSize, qos: data.qos || 1, sentTime: espSentTime,
+            sequenceNumber: data.sequenceNumber || 0,
+            delay: Math.round(networkDelay), throughput: Math.round(throughput), jitter: Math.round(jitter)
         };
+        
         const response = await fetch(`${window.BASE_URL}/api/param/log`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(logData)
         });
         const result = await response.json();
+        
+        // Update packet loss dari backend
         if (result.success && result.data) {
-            data.jitter = result.data.jitter || 0;
-            data.packetLoss = result.data.packetLoss || 0;
-            updateParamDisplay(data);
+            const backendPacketLoss = result.data.packetLoss || 0;
+            data.packetLoss = backendPacketLoss;
+            
+            realtimeStats[device].totalPacketLoss = (realtimeStats[device].totalPacketLoss || 0) + backendPacketLoss;
+            if (realtimeStats[device].paramCount > 0) {
+                realtimeStats[device].avgPacketLoss = realtimeStats[device].totalPacketLoss / realtimeStats[device].paramCount;
+            }
+            
+            if (device === currentDevice) {
+                updateParamDisplay(data);
+                updateStatisticsDisplay(device);
+                if (chartManager) chartManager.updatePacketLossOnly(backendPacketLoss);
+            }
+            
+            console.log(`📊 [${device}] Delay:${networkDelay}ms | Throughput:${throughput.toFixed(0)}bps | Jitter:${jitter}ms | Loss:${backendPacketLoss}%`);
         }
-        await deviceManager.loadDeviceStats(data.device);
     } catch (error) {
         console.error('❌ Error handling param message:', error);
     }
 }
+
+// ========================================
+// UI UPDATE FUNCTIONS
+// ========================================
+function updateStatisticsDisplay(device) {
+    const stats = realtimeStats[device];
+    updateElementWithAnimation('statTotal', stats.total);
+    updateElementWithAnimation('statSuccess', stats.success);
+    updateElementWithAnimation('statFailed', stats.failed);
+    updateElementWithAnimation('statDelay', (stats.avgDelay || 0).toFixed(2));
+    updateElementWithAnimation('statThroughput', (stats.avgThroughput || 0).toFixed(2));
+    updateElementWithAnimation('statMsgSize', (stats.avgMsgSize || 0).toFixed(2));
+    updateElementWithAnimation('statJitter', (stats.avgJitter || 0).toFixed(2));
+    updateElementWithAnimation('statPacketLoss', (stats.avgPacketLoss || 0).toFixed(2));
+}
+
+function updateElementWithAnimation(id, value) {
+    const element = document.getElementById(id);
+    if (element && element.textContent !== String(value)) {
+        element.textContent = value;
+        element.style.transform = 'scale(1.15)';
+        element.style.color = '#6366f1';
+        setTimeout(() => { element.style.transform = 'scale(1)'; element.style.color = ''; }, 300);
+    }
+}
+
+function updateDeviceBadgeCount(device, count) {
+    const badges = { 'esp32cam': 'badgeEsp32cam', 'rfid': 'badgeRfid', 'fingerprint': 'badgeFingerprint' };
+    const badge = document.getElementById(badges[device]);
+    if (badge) {
+        badge.textContent = count;
+        badge.style.transform = 'scale(1.3)';
+        setTimeout(() => { badge.style.transform = 'scale(1)'; }, 300);
+    }
+}
+
+function addActivityLogItem(data) {
+    const container = document.getElementById('activityLog');
+    if (!container) return;
+    
+    const noActivity = container.querySelector('.no-activity');
+    if (noActivity) noActivity.remove();
+    
+    const time = new Date().toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'medium' });
+    const statusClass = data.status === 'success' ? 'success' : 'failed';
+    const icon = data.status === 'success' ? '✅' : '❌';
+    
+    const activityItem = document.createElement('div');
+    activityItem.className = `activity-item ${statusClass}`;
+    activityItem.style.animation = 'slideInRight 0.3s ease';
+    activityItem.innerHTML = `
+        <div class="activity-header">
+            <span class="activity-title">${icon} ${data.method || data.device}</span>
+            <span class="activity-time">${time}</span>
+        </div>
+        <div class="activity-details"><strong>${data.userName || data.userId || 'Unknown'}</strong> - ${data.message || data.status}</div>
+    `;
+    container.insertBefore(activityItem, container.firstChild);
+    
+    const items = container.querySelectorAll('.activity-item');
+    if (items.length > 15) items[items.length - 1].remove();
+}
+
 function updateParamDisplay(data) {
     const params = {
         paramPayload: data.payload || '-',
         paramTopic: data.topic || '-',
         paramDelay: `${data.delay || 0} ms`,
-        paramThroughput: `${data.throughput || 0} bps`,
+        paramThroughput: `${Math.round(data.throughput) || 0} bps`,
         paramSize: `${data.messageSize || 0} bytes`,
         paramQos: data.qos || 1,
         paramJitter: `${data.jitter || 0} ms`,
@@ -270,26 +444,10 @@ function updateParamDisplay(data) {
         if (el) {
             el.textContent = params[id];
             el.style.transform = 'scale(1.05)';
-            setTimeout(() => { el.style.transform = 'scale(1)'; }, 150);
+            el.style.color = '#10b981';
+            setTimeout(() => { el.style.transform = 'scale(1)'; el.style.color = ''; }, 200);
         }
     });
-}
-function updateDeviceBadge(device) {
-    const badges = {
-        'esp32cam': 'badgeEsp32cam',
-        'rfid': 'badgeRfid',
-        'fingerprint': 'badgeFingerprint'
-    };
-    const badgeId = badges[device];
-    if (badgeId) {
-        const badge = document.getElementById(badgeId);
-        if (badge) {
-            const currentCount = parseInt(badge.textContent) || 0;
-            badge.textContent = currentCount + 1;
-            badge.style.transform = 'scale(1.3)';
-            setTimeout(() => { badge.style.transform = 'scale(1)'; }, 200);
-        }
-    }
 }
 
 // ========================================
@@ -302,12 +460,12 @@ function setupEventListeners() {
             currentDevice = device;
             document.querySelectorAll('.device-card').forEach(c => c.classList.remove('active'));
             this.classList.add('active');
+            updateStatisticsDisplay(device);
             deviceManager.switchDevice(device);
-            if (chartManager) {
-                chartManager.loadHistory(device);
-            }
+            if (chartManager) chartManager.loadHistory(device);
         });
     });
+    
     document.getElementById('btnBukaPintu')?.addEventListener('click', () => handleDoorControl('open'));
     document.getElementById('btnKunciPintu')?.addEventListener('click', () => handleDoorControl('lock'));
     document.getElementById('btnTambahUser')?.addEventListener('click', handleAddUser);
@@ -317,28 +475,25 @@ function setupEventListeners() {
     document.getElementById('btnClearAllLogs')?.addEventListener('click', handleClearAllLogs);
     document.getElementById('btnDownloadReport')?.addEventListener('click', handleDownloadReport);
     document.getElementById('logoutBtn')?.addEventListener('click', handleLogout);
+    
     const modal = document.getElementById('modalAddUser');
-    const modalClose = modal?.querySelector('.modal-close');
-    modalClose?.addEventListener('click', () => { modal.style.display = 'none'; });
-    window.addEventListener('click', (e) => {
-        if (e.target === modal) modal.style.display = 'none';
-    });
+    modal?.querySelector('.modal-close')?.addEventListener('click', () => modal.classList.remove('show'));
+    window.addEventListener('click', (e) => { if (e.target === modal) modal.classList.remove('show'); });
     document.getElementById('formAddUser')?.addEventListener('submit', handleSubmitUser);
 }
 
-// ===============
-// CONTROL & EXPORT DAN TOAST TETAP SAMA
-// ===============
+// ========================================
+// CONTROL FUNCTIONS
+// ========================================
 function handleDoorControl(action) {
     if (!mqttClient || !mqttClient.isConnected) {
         showToast('❌ MQTT not connected', 'error');
         return;
     }
-    const payload = JSON.stringify({ device: currentDevice, action: action });
-    mqttClient.publish(MQTT_CONFIG.topics.control, payload, 1);
-    const actionText = action === 'open' ? 'membuka' : 'mengunci';
-    showToast(`🚪 Perintah ${actionText} pintu terkirim`, 'info');
+    mqttClient.publish(MQTT_CONFIG.topics.control, JSON.stringify({ device: currentDevice, action }), 1);
+    showToast(`🚪 Perintah ${action === 'open' ? 'membuka' : 'mengunci'} pintu terkirim`, 'info');
 }
+
 function handleAddUser() {
     const modal = document.getElementById('modalAddUser');
     if (modal) {
@@ -348,37 +503,36 @@ function handleAddUser() {
         document.getElementById('groupFingerId').style.display = currentDevice === 'fingerprint' ? 'block' : 'none';
     }
 }
+
 async function handleSubmitUser(e) {
     e.preventDefault();
-    const username = document.getElementById('inputUsername').value;
-    const password = document.getElementById('inputPassword').value;
-    const userData = { username, password, device: currentDevice, userType: 'device_user' };
-    if (currentDevice === 'esp32cam')
-        userData.faceId = document.getElementById('inputFaceId').value;
-    else if (currentDevice === 'rfid')
-        userData.rfidUid = document.getElementById('inputRfidUid').value;
-    else if (currentDevice === 'fingerprint')
-        userData.fingerId = document.getElementById('inputFingerId').value;
+    const userData = {
+        username: document.getElementById('inputUsername').value,
+        password: document.getElementById('inputPassword').value,
+        device: currentDevice,
+        userType: 'device_user'
+    };
+    if (currentDevice === 'esp32cam') userData.faceId = document.getElementById('inputFaceId').value;
+    else if (currentDevice === 'rfid') userData.rfidUid = document.getElementById('inputRfidUid').value;
+    else if (currentDevice === 'fingerprint') userData.fingerId = document.getElementById('inputFingerId').value;
+    
     try {
         const response = await fetch(`${window.BASE_URL}/api/users/add`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(userData)
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(userData)
         });
         const result = await response.json();
-        const messageEl = document.getElementById('modalMessage');
         if (result.success) {
             showToast('✅ User berhasil ditambahkan', 'success');
             document.getElementById('formAddUser').reset();
             document.getElementById('modalAddUser').classList.remove('show');
         } else {
-            messageEl.textContent = '❌ ' + result.message;
-            messageEl.className = 'error';
+            document.getElementById('modalMessage').textContent = '❌ ' + result.message;
         }
     } catch (error) {
         showToast('❌ Error adding user', 'error');
     }
 }
+
 async function handleExportLogs() {
     try {
         const [authRes, paramRes] = await Promise.all([
@@ -387,141 +541,114 @@ async function handleExportLogs() {
         ]);
         const authData = await authRes.json();
         const paramData = await paramRes.json();
-        let csv = 'Type,Device,Timestamp,Status,Message,Details\n';
-        if (authData.data) {
-            authData.data.forEach(log => {
-                const timestamp = new Date(log.timestamp).toLocaleString('id-ID');
-                csv += `Auth,${log.device},${timestamp},${log.status},"${log.message}","${log.userName || ''}"\n`;
-            });
-        }
-        if (paramData.data) {
-            paramData.data.forEach(log => {
-                const timestamp = new Date(log.timestamp).toLocaleString('id-ID');
-                const details = `Delay:${log.delay}ms|Throughput:${log.throughput}bps|Jitter:${log.jitter || 0}ms|PacketLoss:${log.packetLoss || 0}%`;
-                csv += `Param,${log.device},${timestamp},-,-,"${details}"\n`;
-            });
-        }
-        downloadCSV(csv, `smartdoor_${currentDevice}_${Date.now()}.csv`);
+        
+        let csv = 'Type,Device,Timestamp,SeqNum,Delay(ms),Throughput(bps),MsgSize,Jitter(ms),PacketLoss(%),Status,Details\n';
+        authData.data?.forEach(log => {
+            csv += `Auth,${log.device},${new Date(log.timestamp).toLocaleString('id-ID')},-,-,-,-,-,-,${log.status},"${log.userName || ''}"\n`;
+        });
+        paramData.data?.forEach(log => {
+            csv += `Param,${log.device},${new Date(log.timestamp).toLocaleString('id-ID')},${log.sequenceNumber || 0},${log.delay},${log.throughput},${log.messageSize},${log.jitter || 0},${log.packetLoss || 0},-,-\n`;
+        });
+        
+        downloadCSV(csv, `NetworkAnalysis_${currentDevice}_${Date.now()}.csv`);
         showToast('📥 Data exported successfully', 'success');
     } catch (error) {
         showToast('❌ Export failed', 'error');
     }
 }
+
 async function handleClearLogs(type) {
-    const logType = type === 'auth' ? 'Authentication' : 'Parameter';
-    const deviceName = currentDevice.toUpperCase();
-    const confirmMsg = `⚠️ Delete all ${logType} logs for ${deviceName}?\n\nThis action cannot be undone!`;
-    if (!confirm(confirmMsg)) return;
+    if (!confirm(`⚠️ Delete all ${type} logs for ${currentDevice.toUpperCase()}?`)) return;
+    
     try {
         const response = await fetch(`${window.BASE_URL}/api/${type}/logs/${currentDevice}`, { method: 'DELETE' });
         const result = await response.json();
         if (result.success) {
             showToast(`✅ ${result.message}`, 'success');
-            await deviceManager.loadDeviceStats(currentDevice);
             if (type === 'auth') {
-                await deviceManager.loadDeviceHistory(currentDevice);
-            } else if (chartManager) {
-                chartManager.clearCharts();
+                realtimeStats[currentDevice].total = realtimeStats[currentDevice].success = realtimeStats[currentDevice].failed = 0;
+                updateDeviceBadgeCount(currentDevice, 0);
+                document.getElementById('activityLog').innerHTML = '<div class="no-activity">No activity yet...</div>';
+            } else {
+                realtimeStats[currentDevice].paramCount = realtimeStats[currentDevice].totalDelay = realtimeStats[currentDevice].totalThroughput = 0;
+                realtimeStats[currentDevice].totalMsgSize = realtimeStats[currentDevice].totalJitter = realtimeStats[currentDevice].totalPacketLoss = 0;
+                realtimeStats[currentDevice].avgDelay = realtimeStats[currentDevice].avgThroughput = realtimeStats[currentDevice].avgMsgSize = 0;
+                realtimeStats[currentDevice].avgJitter = realtimeStats[currentDevice].avgPacketLoss = 0;
+                lastDelayPerDevice[currentDevice] = null;
+                if (chartManager) chartManager.clearCharts();
             }
-        } else {
-            showToast(`❌ Error: ${result.message}`, 'error');
+            updateStatisticsDisplay(currentDevice);
         }
     } catch (error) {
-        showToast(`❌ Delete failed: ${error.message}`, 'error');
+        showToast(`❌ Delete failed`, 'error');
     }
 }
+
 async function handleClearAllLogs() {
-    const confirmText = '⚠️ DELETE ALL DATA FROM ALL DEVICES?\n\n' +
-        'This will permanently delete:\n' +
-        '• All Authentication Logs\n' +
-        '• All Parameter Logs\n' +
-        '• From ESP32-CAM, RFID, and Fingerprint\n\n' +
-        'Type "DELETE ALL" to confirm:';
-    const userInput = prompt(confirmText);
-    if (userInput !== 'DELETE ALL') {
-        showToast('❌ Cancelled. Data is safe.', 'info');
-        return;
-    }
+    if (prompt('Type "DELETE ALL" to confirm:') !== 'DELETE ALL') return;
+    
     try {
-        const [authRes, paramRes] = await Promise.all([
+        await Promise.all([
             fetch(`${window.BASE_URL}/api/auth/logs`, { method: 'DELETE' }),
             fetch(`${window.BASE_URL}/api/param/logs`, { method: 'DELETE' })
         ]);
-        const authData = await authRes.json();
-        const paramData = await paramRes.json();
-        if (authData.success && paramData.success) {
-            const totalDeleted = authData.deletedCount + paramData.deletedCount;
-            showToast(`✅ ALL DATA DELETED! (${totalDeleted} records)`, 'success');
-            await deviceManager.loadDeviceStats(currentDevice);
-            await deviceManager.loadDeviceHistory(currentDevice);
-            document.getElementById('badgeEsp32cam').textContent = '0';
-            document.getElementById('badgeRfid').textContent = '0';
-            document.getElementById('badgeFingerprint').textContent = '0';
-            if (chartManager) chartManager.clearCharts();
-        } else {
-            showToast(`❌ Delete failed`, 'error');
-        }
+        
+        ['esp32cam', 'rfid', 'fingerprint'].forEach(device => {
+            realtimeStats[device] = { total: 0, success: 0, failed: 0, paramCount: 0, totalDelay: 0, totalThroughput: 0, totalMsgSize: 0, totalJitter: 0, totalPacketLoss: 0, avgDelay: 0, avgThroughput: 0, avgMsgSize: 0, avgJitter: 0, avgPacketLoss: 0 };
+            updateDeviceBadgeCount(device, 0);
+            lastDelayPerDevice[device] = null;
+        });
+        updateStatisticsDisplay(currentDevice);
+        document.getElementById('activityLog').innerHTML = '<div class="no-activity">No activity yet...</div>';
+        if (chartManager) chartManager.clearCharts();
+        showToast('✅ All data deleted!', 'success');
     } catch (error) {
-        showToast(`❌ Delete failed: ${error.message}`, 'error');
+        showToast('❌ Delete failed', 'error');
     }
 }
+
 async function handleDownloadReport() {
     try {
-        const device = currentDevice.toUpperCase();
-        const timestamp = new Date().toISOString().slice(0,10);
-        const [authRes, paramRes, statsRes] = await Promise.all([
+        const stats = realtimeStats[currentDevice];
+        const [authRes, paramRes] = await Promise.all([
             fetch(`${window.BASE_URL}/api/auth/logs/${currentDevice}`),
-            fetch(`${window.BASE_URL}/api/param/logs/${currentDevice}`),
-            fetch(`${window.BASE_URL}/api/auth/stats/${currentDevice}`)
+            fetch(`${window.BASE_URL}/api/param/logs/${currentDevice}`)
         ]);
         const authData = await authRes.json();
         const paramData = await paramRes.json();
-        const statsData = await statsRes.json();
-        let csv = `SMART DOOR SECURITY SYSTEM - DEVICE REPORT\n`;
-        csv += `Device: ${device}\nGenerated: ${new Date().toLocaleString('id-ID')}\n`;
-        csv += `Total Auth Attempts: ${statsData.stats?.total || 0}\nSuccess: ${statsData.stats?.success || 0}\nFailed: ${statsData.stats?.failed || 0}\n\n`;
-        csv += `===== AUTHENTICATION LOGS =====\nTimestamp,Status,Method,User,Message\n`;
-        if (authData.data) {
-            authData.data.forEach(log => {
-                const t = new Date(log.timestamp).toLocaleString('id-ID');
-                csv += `${t},${log.status},${log.method || '-'},"${log.userName || 'N/A'}","${log.message || '-'}"\n`;
-            });
-        }
-        csv += `\n===== PARAMETER LOGS =====\nTimestamp,Delay(ms),Throughput(bps),Message Size(bytes),Jitter(ms),Packet Loss(%),QoS\n`;
-        if (paramData.data) {
-            paramData.data.forEach(log => {
-                const t = new Date(log.timestamp).toLocaleString('id-ID');
-                csv += `${t},${log.delay},${log.throughput},${log.messageSize},${log.jitter || 0},${log.packetLoss || 0},${log.qos}\n`;
-            });
-        }
-        downloadCSV(csv, `Report_${device}_${timestamp}.csv`);
-        showToast('📄 Report downloaded successfully!', 'success');
+        
+        let csv = `SMART DOOR - NETWORK ANALYSIS REPORT (100% REAL DATA)\n`;
+        csv += `Device: ${currentDevice.toUpperCase()}\nGenerated: ${new Date().toLocaleString('id-ID')}\n\n`;
+        csv += `=== SUMMARY ===\nTotal Auth: ${stats.total}\nSuccess: ${stats.success}\nFailed: ${stats.failed}\n`;
+        csv += `Avg Delay: ${(stats.avgDelay||0).toFixed(2)} ms\nAvg Throughput: ${(stats.avgThroughput||0).toFixed(2)} bps\n`;
+        csv += `Avg Jitter: ${(stats.avgJitter||0).toFixed(2)} ms\nAvg Packet Loss: ${(stats.avgPacketLoss||0).toFixed(2)} %\n\n`;
+        csv += `=== NETWORK LOGS ===\nTimestamp,SeqNum,Delay(ms),Throughput(bps),MsgSize,Jitter(ms),PacketLoss(%)\n`;
+        paramData.data?.forEach(log => {
+            csv += `${new Date(log.timestamp).toLocaleString('id-ID')},${log.sequenceNumber||0},${log.delay},${log.throughput},${log.messageSize},${log.jitter||0},${log.packetLoss||0}\n`;
+        });
+        
+        downloadCSV(csv, `NetworkReport_${currentDevice}_${new Date().toISOString().slice(0,10)}.csv`);
+        showToast('📄 Report downloaded!', 'success');
     } catch (error) {
         showToast('❌ Download failed', 'error');
     }
 }
+
 function downloadCSV(content, filename) {
     const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
     link.click();
-    document.body.removeChild(link);
 }
+
 async function handleLogout() {
-    try {
-        await fetch(`${window.BASE_URL}/api/users/logout`, { method: 'POST' });
-        if (mqttClient) mqttClient.disconnect();
-        sessionStorage.clear();
-        window.location.href = 'login.html';
-    } catch (error) {
-        sessionStorage.clear();
-        window.location.href = 'login.html';
-    }
+    try { await fetch(`${window.BASE_URL}/api/users/logout`, { method: 'POST' }); } catch {}
+    if (mqttClient) mqttClient.disconnect();
+    sessionStorage.clear();
+    window.location.href = 'login.html';
 }
+
 function showToast(message, type = 'info') {
     const toast = document.getElementById('notificationToast');
     const toastMessage = document.getElementById('toastMessage');
@@ -530,3 +657,8 @@ function showToast(message, type = 'info') {
     toast.className = `toast show ${type}`;
     setTimeout(() => { toast.classList.remove('show'); }, 3000);
 }
+
+// CSS Animation
+const style = document.createElement('style');
+style.textContent = `@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}`;
+document.head.appendChild(style);

@@ -10,7 +10,7 @@ window.BASE_URL = 'https://smartdoor-alkadir.onrender.com';
 const MQTT_CONFIG = {
     broker: '4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud',
     port: 8884,
-    username: 'smartdoor',
+    username: 'Alkadir',
     password: 'Alkadir29',
     topics: {
         auth: 'smartdoor/auth',

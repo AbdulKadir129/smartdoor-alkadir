@@ -3,14 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SmartDoor Admin</title>
+    <title>SmartDoor Admin Center</title>
     
+    <!-- CSS & Fonts -->
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
 </head>
 <body>
 
+    <!-- SIDEBAR MENU -->
     <nav class="sidebar">
         <div class="logo-details">
             <i class='bx bxs-shield-check icon'></i>
@@ -20,31 +22,24 @@
         <ul class="nav-list">
             <li>
                 <a href="#" class="active" onclick="showPage('dashboard')">
-                    <i class='bx bx-grid-alt'></i>
+                    <i class='bx bxs-dashboard'></i>
                     <span class="links_name">Dashboard</span>
                 </a>
                 <span class="tooltip">Dashboard</span>
             </li>
             <li>
                 <a href="#" onclick="showPage('control')">
-                    <i class='bx bx-joystick'></i>
+                    <i class='bx bxs-joystick'></i>
                     <span class="links_name">Control Panel</span>
                 </a>
                 <span class="tooltip">Control</span>
             </li>
             <li>
                 <a href="#" onclick="showPage('data')">
-                    <i class='bx bx-data'></i>
+                    <i class='bx bxs-data'></i>
                     <span class="links_name">Data Management</span>
                 </a>
                 <span class="tooltip">Data</span>
-            </li>
-            <li>
-                <a href="#" onclick="showPage('logs')">
-                    <i class='bx bx-file'></i>
-                    <span class="links_name">Activity Logs</span>
-                </a>
-                <span class="tooltip">Logs</span>
             </li>
             <li class="profile">
                 <div class="profile-details">
@@ -58,105 +53,179 @@
         </ul>
     </nav>
 
+    <!-- MAIN CONTENT -->
     <section class="home-section">
         
+        <!-- TOP BAR Status -->
         <div class="top-bar">
             <div class="status-indicator" id="mqttStatus">
                 <span class="dot disconnected"></span>
-                <span class="text">Connecting...</span>
+                <span class="text">System Offline</span>
             </div>
-            <div class="device-info">
-                <i class='bx bxs-camera'></i> ESP32-CAM
+            <div class="device-selector">
+                <span class="active-device"><i class='bx bxs-camera'></i> ESP32-CAM (Master)</span>
             </div>
         </div>
 
+        <!-- HALAMAN 1: DASHBOARD -->
         <div id="page-dashboard" class="page-content active">
             <div class="dashboard-grid">
                 
-                <div class="card monitor-card">
-                    <div class="card-header">
-                        <h3><i class='bx bxs-cctv'></i> LIVE MONITOR</h3>
-                    </div>
-                    <div class="video-box">
-                        <img id="lastFaceImage" src="" alt="Waiting..." style="display:none;">
-                        <div id="noFacePlaceholder">
-                            <p>Waiting for Data...</p>
-                            <button id="btnOpenStream" class="btn-stream"><i class='bx bx-play'></i> LIVE STREAM</button>
+                <!-- KIRI: MONITORING -->
+                <div class="col-left">
+                    <!-- Kartu Wajah -->
+                    <div class="card face-card">
+                        <div class="card-header">
+                            <h3>👤 TARGET DETECTED</h3>
+                            <span class="badge-live">LIVE</span>
+                        </div>
+                        <div class="face-display">
+                            <div class="scan-line"></div>
+                            <img id="lastFaceImage" src="" alt="No Target" style="display:none;">
+                            <div id="noFacePlaceholder">
+                                <span>WAITING DATA...</span>
+                            </div>
+                        </div>
+                        <div class="face-details">
+                            <div class="detail-row">
+                                <small>IDENTITY</small>
+                                <strong id="lastFaceName">-</strong>
+                            </div>
+                            <div class="detail-row">
+                                <small>STATUS</small>
+                                <strong id="lastFaceStatus" class="badge">-</strong>
+                            </div>
+                            <div class="detail-row">
+                                <small>TIME</small>
+                                <strong id="lastFaceTime" class="font-mono">-</strong>
+                            </div>
+                            <button id="btnOpenStream" class="btn-stream full-width">
+                                <i class='bx bx-video'></i> LIVE STREAM
+                            </button>
                         </div>
                     </div>
-                    <div class="face-details">
-                        <div class="detail-item">
-                            <small>DETECTED NAME</small>
-                            <strong id="lastFaceName">-</strong>
+
+                    <!-- Status Node -->
+                    <div class="card node-list">
+                        <h3>📡 NODES</h3>
+                        <div class="node-item active">
+                            <i class='bx bxs-microchip'></i> <span>ESP32 AI</span> <small class="online">ON</small>
                         </div>
-                        <div class="detail-item">
-                            <small>STATUS</small>
-                            <strong id="lastFaceStatus" class="badge">-</strong>
+                        <div class="node-item">
+                            <i class='bx bxs-id-card'></i> <span>RFID</span> <small class="online">ON</small>
+                        </div>
+                        <div class="node-item">
+                            <i class='bx bxs-fingerprint'></i> <span>Biometric</span> <small class="online">ON</small>
                         </div>
                     </div>
                 </div>
 
-                <div class="card metrics-card">
-                    <div class="card-header">
-                        <h3><i class='bx bxs-bar-chart-alt-2'></i> NETWORK METRICS</h3>
-                    </div>
-                    
-                    <div class="metrics-row">
-                        <div class="metric-box green">
-                            <small>Latency</small>
-                            <strong id="statDelay">0 ms</strong>
+                <!-- KANAN: NETWORK METRICS (LENGKAP) -->
+                <div class="col-right">
+                    <!-- Angka Statistik -->
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <small>Total Access</small>
+                            <h3 id="statTotal">0</h3>
                         </div>
-                        <div class="metric-box blue">
-                            <small>Packet Loss</small>
-                            <strong id="statPacketLoss">0 %</strong>
+                        <div class="stat-box success">
+                            <small>Granted</small>
+                            <h3 id="statSuccess">0</h3>
                         </div>
-                        <div class="metric-box orange">
-                            <small>Jitter</small>
-                            <strong id="statJitter">0 ms</strong>
+                        <div class="stat-box danger">
+                            <small>Denied</small>
+                            <h3 id="statFailed">0</h3>
                         </div>
                     </div>
 
-                    <div class="chart-wrapper">
-                        <canvas id="delayChart"></canvas>
-                    </div>
+                    <!-- Grafik & Data Teknis -->
+                    <div class="card network-card">
+                        <div class="card-header">
+                            <h3>📊 NETWORK INTELLIGENCE</h3>
+                            <span class="ping">Ping: <span id="statDelayHeader">0</span> ms</span>
+                        </div>
 
-                    <div class="mqtt-data-row">
-                        <span id="paramTopic">Topic</span>
-                        <span id="paramSize">Size</span>
-                        <span id="paramQos">QoS</span>
+                        <!-- 1. Grafik Utama (Delay) -->
+                        <div class="main-chart-wrapper">
+                            <canvas id="delayChart"></canvas>
+                        </div>
+
+                        <!-- 2. Grid 4 Grafik Kecil -->
+                        <div class="sub-charts-grid">
+                            <div class="mini-chart">
+                                <span>Throughput</span>
+                                <strong id="statThroughput" class="blue">0 bps</strong>
+                                <div class="chart-tiny"><canvas id="throughputChart"></canvas></div>
+                            </div>
+                            <div class="mini-chart">
+                                <span>Msg Size</span>
+                                <strong id="statMsgSize" class="green">0 B</strong>
+                                <div class="chart-tiny"><canvas id="messageSizeChart"></canvas></div>
+                            </div>
+                            <div class="mini-chart">
+                                <span>Jitter</span>
+                                <strong id="statJitter" class="orange">0 ms</strong>
+                                <div class="chart-tiny"><canvas id="jitterChart"></canvas></div>
+                            </div>
+                            <div class="mini-chart">
+                                <span>Packet Loss</span>
+                                <strong id="statPacketLoss" class="red">0 %</strong>
+                                <div class="chart-tiny"><canvas id="packetLossChart"></canvas></div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Tabel Data Teknis MQTT -->
+                        <div class="mqtt-table">
+                            <div class="mqtt-row header">
+                                <span>TOPIC</span><span>QoS</span><span>PAYLOAD</span>
+                            </div>
+                            <div class="mqtt-row">
+                                <span id="paramTopic" class="accent">...</span>
+                                <span id="paramQos">0</span>
+                                <span id="paramPayload" class="font-mono text-xs">...</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
             </div>
         </div>
 
+        <!-- HALAMAN 2: CONTROL PANEL -->
         <div id="page-control" class="page-content">
-            <h2 class="page-title">🎮 Control Panel</h2>
+            <h2>🎮 Remote Control</h2>
             <div class="control-grid">
-                <div class="ctrl-btn green" id="btnBukaPintu">
+                <div class="ctrl-card green" id="btnBukaPintu">
                     <i class='bx bxs-lock-open'></i>
                     <span>BUKA PINTU</span>
                 </div>
-                <div class="ctrl-btn red" id="btnKunciPintu">
+                <div class="ctrl-card red" id="btnKunciPintu">
                     <i class='bx bxs-lock'></i>
                     <span>KUNCI PINTU</span>
                 </div>
-                <div class="ctrl-btn blue" id="btnTambahUser">
+                <div class="ctrl-card blue" id="btnTambahUser">
                     <i class='bx bxs-user-plus'></i>
                     <span>TAMBAH USER</span>
                 </div>
             </div>
         </div>
 
+        <!-- HALAMAN 3: DATA MANAGEMENT -->
         <div id="page-data" class="page-content">
-            <h2 class="page-title">💾 Data Management</h2>
+            <h2>💾 Data Management</h2>
             <div class="control-grid">
-                <button id="btnClearAllLogs" class="ctrl-btn danger">⚠️ RESET ALL DATA</button>
-                <button id="btnDownloadReport" class="ctrl-btn info">📥 DOWNLOAD REPORT</button>
+                <button id="btnClearAllLogs" class="ctrl-card danger">
+                    <i class='bx bxs-trash'></i> <span>RESET ALL DATA</span>
+                </button>
+                <button id="btnDownloadReport" class="ctrl-card info">
+                    <i class='bx bxs-download'></i> <span>DOWNLOAD REPORT</span>
+                </button>
             </div>
         </div>
 
+        <!-- HALAMAN 4: LOGS -->
         <div id="page-logs" class="page-content">
-            <h2 class="page-title">📋 System Logs</h2>
+            <h2>📋 Activity Logs</h2>
             <div class="log-container" id="activityLog">
                 <div class="log-empty">System Ready...</div>
             </div>
@@ -164,32 +233,34 @@
 
     </section>
 
+    <!-- MODAL STREAM -->
     <div id="streamModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>🎥 ESP32-CAM LIVE</h3>
+                <h3>🎥 SECURE FEED</h3>
                 <span class="close" id="closeStreamModal">&times;</span>
             </div>
             <div class="stream-body">
-                <img id="streamVideo" src="">
+                <img id="streamVideo" src="" alt="Offline">
+                <div class="rec-badge">● LIVE</div>
             </div>
         </div>
     </div>
 
+    <!-- MODAL USER -->
     <div id="modalAddUser" class="modal">
         <div class="modal-content small">
-            <div class="modal-header">
-                <h3>Add User</h3>
-                <span class="close" id="closeUserModal">&times;</span>
-            </div>
+            <span class="close" id="closeUserModal">&times;</span>
+            <h3>Register User</h3>
             <form id="formAddUser">
                 <input type="text" id="inputUsername" placeholder="Username" required>
                 <input type="password" id="inputPassword" placeholder="Password" required>
-                <button type="submit" class="btn-save">Simpan</button>
+                <button type="submit" class="btn-save">Save</button>
             </form>
         </div>
     </div>
 
+    <!-- SCRIPTS -->
     <script src="lib/chart.umd.js"></script>
     <script src="lib/mqttws31.min.js"></script>
     <script src="js/mqtt-client.js"></script>
@@ -200,19 +271,10 @@
     <script>
         let sidebar = document.querySelector(".sidebar");
         let closeBtn = document.querySelector("#btn");
-
-        closeBtn.addEventListener("click", ()=>{
-            sidebar.classList.toggle("open");
-        });
-
-        function showPage(pageId) {
-            // Sembunyikan semua
-            document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-list a').forEach(el => el.classList.remove('active'));
-            
-            // Tampilkan yg dipilih
-            document.getElementById('page-' + pageId).classList.add('active');
-            event.currentTarget.classList.add('active');
+        closeBtn.addEventListener("click", ()=>{ sidebar.classList.toggle("open"); });
+        function showPage(id) {
+            document.querySelectorAll('.page-content').forEach(e=>e.classList.remove('active'));
+            document.getElementById('page-'+id).classList.add('active');
         }
     </script>
 </body>

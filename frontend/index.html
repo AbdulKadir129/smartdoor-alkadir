@@ -1,116 +1,124 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Door Security System</title>
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <!-- Header -->
     <header class="header">
         <div class="container-header">
             <div class="logo-section">
-                <span class="icon">🔐</span>
+                <div class="icon">🔐</div>
                 <div class="header-text">
-                    <h1>Smart Door Dashboard</h1>
-                    <p>Real-time Monitoring & Control System</p>
+                    <h1>Smart Door Security System</h1>
+                    <p>Multi-Authentication IoT Platform</p>
                 </div>
             </div>
             <div class="header-right">
-                <span class="welcome-text">Welcome, <strong id="userName">Administrator</strong></span>
-                <button id="logoutBtn" class="btn-logout">Logout</button>
+                <div class="welcome-text">Welcome, <strong id="userName">User</strong></div>
+                <button class="btn-logout" onclick="logout()">🚪 Logout</button>
             </div>
         </div>
     </header>
 
+    <!-- MQTT Status Bar -->
     <div class="mqtt-status-bar">
         <div class="container-status">
-            <div id="mqttStatus" class="status-indicator">
+            <div class="status-indicator" id="mqttStatus">
                 <span class="status-dot disconnected"></span>
-                <span class="status-text">Disconnected from MQTT Broker</span>
+                <span class="status-text">Connecting to MQTT Broker...</span>
             </div>
         </div>
     </div>
 
+    <!-- Main Dashboard -->
     <main class="dashboard">
         <div class="container-main">
-            <!-- PANEL KONTROL -->
+            
+            <!-- Panel Kontrol -->
             <section class="panel-kontrol">
                 <h2 class="section-title">🎮 Panel Kontrol</h2>
                 <div class="control-grid">
-                    <button class="control-card green" id="btnBukaPintu">
-                        <span class="control-icon">🚪</span>
-                        <span class="control-text">BUKA PINTU</span>
-                    </button>
-                    <button class="control-card red" id="btnKunciPintu">
-                        <span class="control-icon">🔒</span>
-                        <span class="control-text">KUNCI PINTU</span>
-                    </button>
-                    <button class="control-card orange" id="btnTambahUser">
-                        <span class="control-icon">👤</span>
-                        <span class="control-text">TAMBAH USER</span>
-                    </button>
-                    <button class="control-card blue" id="btnExportLogs">
-                        <span class="control-icon">📥</span>
-                        <span class="control-text">EXPORT LOGS</span>
-                    </button>
+                    <div class="control-card green" onclick="sendControl('unlock')">
+                        <div class="control-icon">🔓</div>
+                        <div class="control-text">Unlock Door</div>
+                    </div>
+                    <div class="control-card red" onclick="sendControl('lock')">
+                        <div class="control-icon">🔒</div>
+                        <div class="control-text">Lock Door</div>
+                    </div>
+                    <div class="control-card blue" onclick="openEnrollModal()">
+                        <div class="control-icon">👤</div>
+                        <div class="control-text">Enroll New User</div>
+                    </div>
+                    <div class="control-card purple" onclick="sendControl('delete_user')">
+                        <div class="control-icon">🗑️</div>
+                        <div class="control-text">Delete User</div>
+                    </div>
+                    <div class="control-card orange" onclick="sendControl('system_reset')">
+                        <div class="control-icon">🔄</div>
+                        <div class="control-text">System Reset</div>
+                    </div>
                 </div>
-                <div class="delete-controls" style="margin-top: 24px;">
+
+                <!-- Data Management -->
+                <div class="delete-controls">
                     <h3 class="section-subtitle">🗑️ Data Management</h3>
                     <div class="control-grid">
-                        <button class="control-card delete-auth" id="btnClearAuthLogs">
-                            <span class="control-icon">🗑️</span>
-                            <span class="control-text">CLEAR AUTH LOGS</span>
-                        </button>
-                        <button class="control-card delete-param" id="btnClearParamLogs">
-                            <span class="control-icon">🗑️</span>
-                            <span class="control-text">CLEAR PARAM LOGS</span>
-                        </button>
-                        <button class="control-card delete-all" id="btnClearAllLogs">
-                            <span class="control-icon">⚠️</span>
-                            <span class="control-text">CLEAR ALL DATA</span>
-                        </button>
-                        <button class="control-card purple" id="btnDownloadReport">
-                            <span class="control-icon">📄</span>
-                            <span class="control-text">DOWNLOAD REPORT</span>
-                        </button>
+                        <div class="control-card delete-auth" onclick="deleteData('auth', 'esp32cam')">
+                            <div class="control-icon">📷</div>
+                            <div class="control-text">Delete ESP32-CAM Data</div>
+                        </div>
+                        <div class="control-card delete-auth" onclick="deleteData('auth', 'rfid')">
+                            <div class="control-icon">💳</div>
+                            <div class="control-text">Delete RFID Data</div>
+                        </div>
+                        <div class="control-card delete-auth" onclick="deleteData('auth', 'fingerprint')">
+                            <div class="control-icon">👆</div>
+                            <div class="control-text">Delete Fingerprint Data</div>
+                        </div>
+                        <div class="control-card delete-all" onclick="deleteAllData()">
+                            <div class="control-icon">⚠️</div>
+                            <div class="control-text">Delete All Data</div>
+                        </div>
                     </div>
                 </div>
             </section>
 
-            <!-- DEVICE SECTION -->
+            <!-- Device Selection -->
             <section class="device-section">
+                <h2 class="section-title">📱 Select Device</h2>
                 <div class="device-cards">
-                    <div class="device-card active" data-device="esp32cam">
-                        <div class="device-badge" id="badgeEsp32cam">0</div>
-                        <span class="device-icon">📷</span>
-                        <span class="device-name">ESP32-CAM</span>
+                    <div class="device-card active" data-device="esp32cam" onclick="deviceManager.switchDevice('esp32cam')">
+                        <div class="device-badge" id="badge-esp32cam">0</div>
+                        <div class="device-icon">📷</div>
+                        <div class="device-name">ESP32-CAM</div>
                     </div>
-                    <div class="device-card" data-device="rfid">
-                        <div class="device-badge" id="badgeRfid">0</div>
-                        <span class="device-icon">💳</span>
-                        <span class="device-name">RFID</span>
+                    <div class="device-card" data-device="rfid" onclick="deviceManager.switchDevice('rfid')">
+                        <div class="device-badge" id="badge-rfid">0</div>
+                        <div class="device-icon">💳</div>
+                        <div class="device-name">RFID</div>
                     </div>
-                    <div class="device-card" data-device="fingerprint">
-                        <div class="device-badge" id="badgeFingerprint">0</div>
-                        <span class="device-icon">👆</span>
-                        <span class="device-name">Fingerprint</span>
+                    <div class="device-card" data-device="fingerprint" onclick="deviceManager.switchDevice('fingerprint')">
+                        <div class="device-badge" id="badge-fingerprint">0</div>
+                        <div class="device-icon">👆</div>
+                        <div class="device-name">Fingerprint</div>
                     </div>
                 </div>
             </section>
 
-            <!-- LAST RECOGNIZED FACE PANEL + LOG BUTTON -->
+            <!-- Last Recognized Face -->
             <section class="last-face-section">
-                <h2 class="section-title">
-                  👤 Last Recognized Face
-                  <button id="btnShowHistory" class="btn-show-history" style="margin-left:12px;">Lihat Log</button>
-                </h2>
+                <h2 class="section-title">👤 Last Recognized Face</h2>
                 <div class="last-face-container">
                     <div class="face-image-wrapper">
-                        <img id="lastFaceImage" src="" alt="No face recognized yet" style="display: none;">
+                        <img id="lastFaceImage" src="" alt="Last Face" style="display: none;" />
                         <div id="noFacePlaceholder" class="no-face-placeholder">
-                            <span class="placeholder-icon">📷</span>
-                            <p>No face recognition data yet</p>
+                            <span class="placeholder-icon">🤷</span>
+                            No face recognition data yet
                         </div>
                     </div>
                     <div class="face-info">
@@ -129,23 +137,31 @@
                         <div class="face-info-item">
                             <span class="info-label">Time:</span>
                             <span class="info-value" id="lastFaceTime">-</span>
+                            <button class="btn-show-history" onclick="showFaceHistoryModal()">📜 View History</button>
                         </div>
                     </div>
                 </div>
             </section>
 
-            <!-- MODAL FACE HISTORY LOG -->
-            <div id="faceHistoryModal" class="modal">
-                <div class="modal-content" style="max-width:500px;">
-                    <div class="modal-header">
-                        <h2>Face Recognition Log</h2>
-                        <span class="modal-close" id="closeHistoryModal">&times;</span>
+            <!-- Live Streaming Section - BARU -->
+            <section class="streaming-section">
+                <h2 class="section-title">📹 Live Camera Feed</h2>
+                <div class="stream-container">
+                    <img id="cameraStream" src="" alt="Camera Stream" 
+                         onerror="this.style.display='none'; document.getElementById('streamPlaceholder').style.display='flex';" 
+                         onload="this.style.display='block'; document.getElementById('streamPlaceholder').style.display='none';" />
+                    <div id="streamPlaceholder" class="stream-placeholder">
+                        <div class="placeholder-icon">📷</div>
+                        <div>Camera Offline</div>
                     </div>
-                    <div id="faceRecognitionHistory" class="face-history-log"></div>
+                    <div class="stream-status">
+                        <span class="stream-indicator" id="streamIndicator"></span>
+                        <span id="streamStatusText">Disconnected</span>
+                    </div>
                 </div>
-            </div>
+            </section>
 
-            <!-- STATISTICS SECTION -->
+            <!-- Statistics Overview -->
             <section class="statistics-section">
                 <h2 class="section-title">📊 Statistics Overview</h2>
                 <div class="stats-grid">
@@ -166,33 +182,33 @@
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">AVG DELAY</div>
-                        <div class="stat-value" id="statDelay">0</div>
+                        <div class="stat-value" id="statAvgDelay">0</div>
                         <div class="stat-unit">ms</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">AVG THROUGHPUT</div>
-                        <div class="stat-value" id="statThroughput">0</div>
+                        <div class="stat-value" id="statAvgThroughput">0</div>
                         <div class="stat-unit">bps</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">AVG MESSAGE SIZE</div>
-                        <div class="stat-value" id="statMsgSize">0</div>
+                        <div class="stat-value" id="statAvgMsgSize">0</div>
                         <div class="stat-unit">bytes</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">AVG JITTER</div>
-                        <div class="stat-value" id="statJitter">0</div>
+                        <div class="stat-value" id="statAvgJitter">0</div>
                         <div class="stat-unit">ms</div>
                     </div>
                     <div class="stat-box">
                         <div class="stat-label">AVG PACKET LOSS</div>
-                        <div class="stat-value" id="statPacketLoss">0</div>
+                        <div class="stat-value" id="statAvgPacketLoss">0</div>
                         <div class="stat-unit">%</div>
                     </div>
                 </div>
             </section>
 
-            <!-- MQTT PARAMETERS -->
+            <!-- MQTT Parameters -->
             <section class="mqtt-params-section">
                 <h2 class="section-title">📡 MQTT Parameters</h2>
                 <div class="params-detail-grid">
@@ -214,7 +230,7 @@
                     </div>
                     <div class="param-detail-card">
                         <div class="param-label">Message Size</div>
-                        <div class="param-value" id="paramSize">- bytes</div>
+                        <div class="param-value" id="paramMsgSize">- bytes</div>
                     </div>
                     <div class="param-detail-card">
                         <div class="param-label">QoS</div>
@@ -231,90 +247,93 @@
                 </div>
             </section>
 
-            <!-- CHART SECTION -->
+            <!-- Real-time Charts -->
             <section class="chart-section">
                 <h2 class="section-title">📈 Real-time Network Analysis</h2>
-                
-                <div class="chart-wrapper" style="height: 280px;">
+                <div class="chart-wrapper">
                     <h3>⏱️ Delay (ms)</h3>
-                    <canvas id="delayChart"></canvas>
+                    nvass id="delayChart"></canvas>
                 </div>
-                <div class="chart-wrapper" style="height: 280px;">
+                <div class="chart-wrapper">
                     <h3>🚀 Throughput (bps)</h3>
-                    <canvas id="throughputChart"></canvas>
+                    anvas id="throughputChart"></canvas>
                 </div>
-                <div class="chart-wrapper" style="height: 280px;">
+                <div class="chart-wrapper">
                     <h3>📦 Message Size (Bytes)</h3>
-                    <canvas id="messageSizeChart"></canvas>
+                    nvas id="messaggeSizeChart"></canvas>
                 </div>
-                <div class="chart-wrapper" style="height: 280px;">
+                <div class="chart-wrapper">
                     <h3>📉 Jitter (ms)</h3>
-                    <canvas id="jitterChart"></canvas>
+                    nvas iid="jitterChart"></canvas>
                 </div>
-                <div class="chart-wrapper" style="height: 280px;">
+                <div class="chart-wrapper">
                     <h3>📊 Packet Loss (%)</h3>
-                    <canvas id="packetLossChart"></canvas>
+                    nvass id="packetLossChart"></canvas>
                 </div>
             </section>
 
-            <!-- ACTIVITY LOG -->
+            <!-- Activity Log -->
             <section class="activity-section">
                 <h2 class="section-title">📋 Activity Log</h2>
                 <div class="activity-log-container" id="activityLog">
                     <div class="no-activity">No activity yet...</div>
                 </div>
             </section>
+
         </div>
     </main>
 
-    <!-- MODAL ADD USER -->
-    <div id="modalAddUser" class="modal">
+    <!-- Modal Enroll User -->
+    <div class="modal" id="enrollModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Add New User</h2>
-                <span class="modal-close">&times;</span>
+                <h2>👤 Enroll New User</h2>
+                <span class="modal-close" onclick="closeEnrollModal()">&times;</span>
             </div>
-            <form id="formAddUser">
+            <form id="enrollForm" onsubmit="submitEnroll(event)">
                 <div class="form-group">
-                    <label for="inputUsername">Username</label>
-                    <input type="text" id="inputUsername" required placeholder="Enter username">
+                    <label for="enrollName">User Name</label>
+                    <input type="text" id="enrollName" required />
                 </div>
                 <div class="form-group">
-                    <label for="inputPassword">Password</label>
-                    <input type="password" id="inputPassword" required placeholder="Enter password">
+                    <label for="enrollId">User ID</label>
+                    <input type="text" id="enrollId" required />
                 </div>
-                <div class="form-group" id="groupFaceId" style="display: none;">
-                    <label for="inputFaceId">Face ID</label>
-                    <input type="text" id="inputFaceId" placeholder="e.g., FaceID#1">
-                    <small>Enter Face ID from ESP32-CAM enrollment</small>
+                <div class="form-group">
+                    <label for="enrollDevice">Device Type</label>
+                    <select id="enrollDevice" required>
+                        <option value="esp32cam">ESP32-CAM (Face)</option>
+                        <option value="rfid">RFID Card</option>
+                        <option value="fingerprint">Fingerprint</option>
+                    </select>
                 </div>
-                <div class="form-group" id="groupRfidUid" style="display: none;">
-                    <label for="inputRfidUid">RFID UID</label>
-                    <input type="text" id="inputRfidUid" placeholder="e.g., A1:B2:C3:D4">
-                    <small>Scan RFID card to get UID</small>
-                </div>
-                <div class="form-group" id="groupFingerId" style="display: none;">
-                    <label for="inputFingerId">Finger ID</label>
-                    <input type="number" id="inputFingerId" min="1" max="120" placeholder="e.g., 1">
-                    <small>Enter fingerprint slot number (1-120)</small>
-                </div>
-                <button type="submit" class="btn-submit">Add User</button>
+                <button type="submit" class="btn-submit">✅ Enroll User</button>
             </form>
-            <div id="modalMessage"></div>
         </div>
     </div>
 
-    <!-- TOAST NOTIFICATION -->
-    <div id="notificationToast" class="toast">
-        <span id="toastMessage"></span>
+    <!-- Modal Face History -->
+    <div class="modal" id="faceHistoryModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>📜 Face Recognition History</h2>
+                <span class="modal-close" onclick="closeFaceHistoryModal()">&times;</span>
+            </div>
+            <div id="faceRecognitionHistory" class="face-history-log">
+                <!-- Will be populated by JavaScript -->
+            </div>
+        </div>
     </div>
 
-    <!-- SCRIPTS -->
-    <script src="lib/chart.umd.js"></script>
-    <script src="lib/mqttws31.min.js"></script>
-    <script src="js/mqtt-client.js"></script>
-    <script src="js/chart-manager.js"></script>
-    <script src="js/device-manager.js"></script>
-    <script src="js/main.js"></script>
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+
+    <!-- Scripts -->
+    <script src="mqttws31.min.js"></script>
+    <script src="chart.umd.js"></script>
+    <script src="mqtt-client.js"></script>
+    <script src="chart-manager.js"></script>
+    <script src="device-manager.js"></script>
+    <script src="main.js"></script>
 </body>
 </html>

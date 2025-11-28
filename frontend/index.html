@@ -3,137 +3,144 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Door Admin</title>
+    <title>SmartDoor Admin</title>
+    
     <link rel="stylesheet" href="css/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
 </head>
 <body>
 
     <nav class="sidebar">
-        <div class="logo-area">
-            <i class='bx bxs-shield-check logo-icon'></i>
-            <span class="logo-name">SmartDoor</span>
+        <div class="logo-details">
+            <i class='bx bxs-shield-check icon'></i>
+            <div class="logo_name">SmartDoor</div>
+            <i class='bx bx-menu' id="btn" ></i>
         </div>
-
-        <ul class="nav-links">
+        <ul class="nav-list">
             <li>
                 <a href="#" class="active" onclick="showPage('dashboard')">
-                    <i class='bx bxs-dashboard'></i>
-                    <span class="link-name">Dashboard</span>
+                    <i class='bx bx-grid-alt'></i>
+                    <span class="links_name">Dashboard</span>
                 </a>
+                <span class="tooltip">Dashboard</span>
             </li>
             <li>
                 <a href="#" onclick="showPage('control')">
-                    <i class='bx bxs-joystick'></i>
-                    <span class="link-name">Control Panel</span>
+                    <i class='bx bx-joystick'></i>
+                    <span class="links_name">Control Panel</span>
                 </a>
+                <span class="tooltip">Control</span>
             </li>
             <li>
                 <a href="#" onclick="showPage('data')">
-                    <i class='bx bxs-data'></i>
-                    <span class="link-name">Data Management</span>
+                    <i class='bx bx-data'></i>
+                    <span class="links_name">Data Management</span>
                 </a>
+                <span class="tooltip">Data</span>
             </li>
             <li>
                 <a href="#" onclick="showPage('logs')">
-                    <i class='bx bxs-file-txt'></i>
-                    <span class="link-name">Activity Logs</span>
+                    <i class='bx bx-file'></i>
+                    <span class="links_name">Activity Logs</span>
                 </a>
+                <span class="tooltip">Logs</span>
             </li>
-        </ul>
-
-        <div class="profile-content">
-            <div class="profile">
+            <li class="profile">
                 <div class="profile-details">
-                    <div class="name-job">
+                    <div class="name_job">
                         <div class="name" id="userName">Admin</div>
                         <div class="job">Operator</div>
                     </div>
                 </div>
                 <i class='bx bx-log-out' id="logoutBtn" title="Logout"></i>
-            </div>
-        </div>
+            </li>
+        </ul>
     </nav>
 
     <section class="home-section">
         
         <div class="top-bar">
-            <div class="status-pill" id="mqttStatus">
+            <div class="status-indicator" id="mqttStatus">
                 <span class="dot disconnected"></span>
-                <span class="status-text">Offline</span>
+                <span class="text">Connecting...</span>
             </div>
-            <div class="device-selector">
-                <span class="active-device" data-device="esp32cam">📷 ESP32-CAM</span>
-                </div>
+            <div class="device-info">
+                <i class='bx bxs-camera'></i> ESP32-CAM
+            </div>
         </div>
 
         <div id="page-dashboard" class="page-content active">
-            <div class="grid-container">
-                <div class="card face-monitor">
-                    <h3>🎥 LIVE MONITOR</h3>
-                    <div class="video-placeholder">
+            <div class="dashboard-grid">
+                
+                <div class="card monitor-card">
+                    <div class="card-header">
+                        <h3><i class='bx bxs-cctv'></i> LIVE MONITOR</h3>
+                    </div>
+                    <div class="video-box">
                         <img id="lastFaceImage" src="" alt="Waiting..." style="display:none;">
-                        <div id="noFacePlaceholder">Waiting for Data...</div>
-                        <button id="btnOpenStream" class="btn-stream"><i class='bx bx-video'></i> LIVE STREAM</button>
+                        <div id="noFacePlaceholder">
+                            <p>Waiting for Data...</p>
+                            <button id="btnOpenStream" class="btn-stream"><i class='bx bx-play'></i> LIVE STREAM</button>
+                        </div>
                     </div>
                     <div class="face-details">
-                        <div>
+                        <div class="detail-item">
                             <small>DETECTED NAME</small>
                             <strong id="lastFaceName">-</strong>
                         </div>
-                        <div>
+                        <div class="detail-item">
                             <small>STATUS</small>
                             <strong id="lastFaceStatus" class="badge">-</strong>
                         </div>
                     </div>
                 </div>
 
-                <div class="card stats-monitor">
-                    <h3>📊 NETWORK METRICS</h3>
-                    <div class="mini-stats">
-                        <div class="stat-item">
+                <div class="card metrics-card">
+                    <div class="card-header">
+                        <h3><i class='bx bxs-bar-chart-alt-2'></i> NETWORK METRICS</h3>
+                    </div>
+                    
+                    <div class="metrics-row">
+                        <div class="metric-box green">
                             <small>Latency</small>
                             <strong id="statDelay">0 ms</strong>
                         </div>
-                        <div class="stat-item">
+                        <div class="metric-box blue">
                             <small>Packet Loss</small>
                             <strong id="statPacketLoss">0 %</strong>
                         </div>
-                        <div class="stat-item">
+                        <div class="metric-box orange">
                             <small>Jitter</small>
                             <strong id="statJitter">0 ms</strong>
                         </div>
                     </div>
-                    <div class="chart-area">
+
+                    <div class="chart-wrapper">
                         <canvas id="delayChart"></canvas>
                     </div>
-                    <div class="mqtt-table">
-                        <div class="row header">
-                            <span>Topic</span><span>Size</span><span>QoS</span>
-                        </div>
-                        <div class="row">
-                            <span id="paramTopic">-</span>
-                            <span id="paramSize">-</span>
-                            <span id="paramQos">-</span>
-                        </div>
+
+                    <div class="mqtt-data-row">
+                        <span id="paramTopic">Topic</span>
+                        <span id="paramSize">Size</span>
+                        <span id="paramQos">QoS</span>
                     </div>
                 </div>
             </div>
         </div>
 
         <div id="page-control" class="page-content">
-            <h2>🎮 Remote Control</h2>
+            <h2 class="page-title">🎮 Control Panel</h2>
             <div class="control-grid">
-                <div class="ctrl-card" id="btnBukaPintu">
+                <div class="ctrl-btn green" id="btnBukaPintu">
                     <i class='bx bxs-lock-open'></i>
                     <span>BUKA PINTU</span>
                 </div>
-                <div class="ctrl-card danger" id="btnKunciPintu">
+                <div class="ctrl-btn red" id="btnKunciPintu">
                     <i class='bx bxs-lock'></i>
                     <span>KUNCI PINTU</span>
                 </div>
-                <div class="ctrl-card info" id="btnTambahUser">
+                <div class="ctrl-btn blue" id="btnTambahUser">
                     <i class='bx bxs-user-plus'></i>
                     <span>TAMBAH USER</span>
                 </div>
@@ -141,51 +148,44 @@
         </div>
 
         <div id="page-data" class="page-content">
-            <h2>💾 Data Management</h2>
+            <h2 class="page-title">💾 Data Management</h2>
             <div class="control-grid">
-                <div class="ctrl-card warning" id="btnClearAuthLogs">
-                    <i class='bx bxs-trash'></i>
-                    <span>HAPUS LOG AKSES</span>
-                </div>
-                <div class="ctrl-card warning" id="btnClearParamLogs">
-                    <i class='bx bxs-trash'></i>
-                    <span>HAPUS LOG MQTT</span>
-                </div>
-                <div class="ctrl-card danger" id="btnClearAllLogs">
-                    <i class='bx bxs-bomb'></i>
-                    <span>RESET SEMUA DATA</span>
-                </div>
-                <div class="ctrl-card success" id="btnDownloadReport">
-                    <i class='bx bxs-download'></i>
-                    <span>DOWNLOAD LAPORAN</span>
-                </div>
+                <button id="btnClearAllLogs" class="ctrl-btn danger">⚠️ RESET ALL DATA</button>
+                <button id="btnDownloadReport" class="ctrl-btn info">📥 DOWNLOAD REPORT</button>
             </div>
         </div>
 
         <div id="page-logs" class="page-content">
-            <h2>📋 Activity Logs</h2>
-            <div class="log-list" id="activityLog">
-                </div>
+            <h2 class="page-title">📋 System Logs</h2>
+            <div class="log-container" id="activityLog">
+                <div class="log-empty">System Ready...</div>
+            </div>
         </div>
 
     </section>
 
     <div id="streamModal" class="modal">
         <div class="modal-content">
-            <span id="closeStreamModal" class="close">&times;</span>
-            <h3>🎥 Live Feed</h3>
-            <img id="streamVideo" src="">
+            <div class="modal-header">
+                <h3>🎥 ESP32-CAM LIVE</h3>
+                <span class="close" id="closeStreamModal">&times;</span>
+            </div>
+            <div class="stream-body">
+                <img id="streamVideo" src="">
+            </div>
         </div>
     </div>
 
     <div id="modalAddUser" class="modal">
         <div class="modal-content small">
-            <span id="closeUserModal" class="close">&times;</span>
-            <h3>Register User</h3>
+            <div class="modal-header">
+                <h3>Add User</h3>
+                <span class="close" id="closeUserModal">&times;</span>
+            </div>
             <form id="formAddUser">
                 <input type="text" id="inputUsername" placeholder="Username" required>
                 <input type="password" id="inputPassword" placeholder="Password" required>
-                <button type="submit">Save</button>
+                <button type="submit" class="btn-save">Simpan</button>
             </form>
         </div>
     </div>
@@ -196,17 +196,22 @@
     <script src="js/chart-manager.js"></script>
     <script src="js/device-manager.js"></script>
     <script src="js/main.js"></script>
-    
+
     <script>
-        // Script Sederhana untuk Pindah Halaman
+        let sidebar = document.querySelector(".sidebar");
+        let closeBtn = document.querySelector("#btn");
+
+        closeBtn.addEventListener("click", ()=>{
+            sidebar.classList.toggle("open");
+        });
+
         function showPage(pageId) {
-            // Sembunyikan semua halaman
+            // Sembunyikan semua
             document.querySelectorAll('.page-content').forEach(el => el.classList.remove('active'));
-            // Tampilkan halaman yang dipilih
-            document.getElementById('page-' + pageId).classList.add('active');
+            document.querySelectorAll('.nav-list a').forEach(el => el.classList.remove('active'));
             
-            // Update menu aktif
-            document.querySelectorAll('.nav-links a').forEach(el => el.classList.remove('active'));
+            // Tampilkan yg dipilih
+            document.getElementById('page-' + pageId).classList.add('active');
             event.currentTarget.classList.add('active');
         }
     </script>

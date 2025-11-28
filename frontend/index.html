@@ -44,7 +44,7 @@
                 </div>
                 <div class="face-display">
                     <div class="scan-line"></div>
-                    <img id="lastFaceImage" src="assets/placeholder-face.png" alt="No Target" style="display:none;">
+                    <img id="lastFaceImage" src="" alt="No Target" style="display:none;">
                     <div id="noFacePlaceholder" class="placeholder-box">
                         <span>WAITING FOR DATA...</span>
                     </div>
@@ -59,11 +59,11 @@
                         <span id="lastFaceSimilarity" class="value-highlight">-</span>
                     </div>
                     <div class="meta-item full-width">
-                        <label>ACCESS STATUS</label>
+                        <label>STATUS AKSES</label>
                         <span id="lastFaceStatus" class="status-badge">-</span>
                     </div>
                     <div class="meta-item full-width">
-                        <label>TIMESTAMP</label>
+                        <label>WAKTU</label>
                         <span id="lastFaceTime" class="value-mono">-</span>
                     </div>
                 </div>
@@ -138,11 +138,6 @@
                     <canvas id="jitterChart"></canvas>
                     <div class="mini-value" id="statJitter">0 ms</div>
                 </div>
-                <div class="card mini-chart">
-                    <h4>Packet Loss</h4>
-                    <canvas id="packetLossChart"></canvas>
-                    <div class="mini-value" id="statPacketLoss">0 %</div>
-                </div>
             </div>
         </section>
 
@@ -163,8 +158,6 @@
                         <span>📥</span> REPORT
                     </button>
                 </div>
-                <div class="divider"></div>
-                <button id="btnClearAllLogs" class="btn-link danger">⚠️ Reset All System Data</button>
             </div>
 
             <div class="card activity-log">
@@ -184,27 +177,9 @@
                 <button class="modal-close" id="closeStreamModal">✕</button>
             </div>
             <div class="stream-view">
-                <img id="streamVideo" src="" alt="Connecting...">
-                <div class="overlay-rec">● REC</div>
+                <img id="streamVideo" src="" alt="Stream Offline">
+                <div class="overlay-rec">● LIVE</div>
             </div>
-        </div>
-    </div>
-
-    <div id="modalAddUser" class="modal">
-        <div class="modal-content small">
-            <h2>Register New Identity</h2>
-            <form id="formAddUser">
-                <input type="text" id="inputUsername" placeholder="Username" required>
-                <input type="password" id="inputPassword" placeholder="Password" required>
-                
-                <div class="device-specific-inputs">
-                    <input type="text" id="inputFaceId" placeholder="Face ID (from ESP32)" style="display:none;">
-                    <input type="text" id="inputRfidUid" placeholder="RFID UID" style="display:none;">
-                    <input type="number" id="inputFingerId" placeholder="Fingerprint ID" style="display:none;">
-                </div>
-                
-                <button type="submit" class="btn-full">REGISTER</button>
-            </form>
         </div>
     </div>
 

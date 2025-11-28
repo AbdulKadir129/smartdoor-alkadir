@@ -1,7 +1,6 @@
 window.BASE_URL = 'https://smartdoor-alkadir.onrender.com';
 
-// --- CONFIG ESP32 ---
-// GANTI IP INI SETIAP KALI ESP32 RESTART (LIHAT SERIAL MONITOR)
+// GANTI IP INI SESUAI SERIAL MONITOR (PENTING!)
 const ESP32_IP = "192.168.18.185"; 
 
 const MQTT_CONFIG = {
@@ -20,11 +19,8 @@ let mqttClient = null;
 let chartManager = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    console.log("🚀 SYSTEM STARTED");
     initMQTT();
     setupEventListeners();
-    
-    // Init Charts if exist
     if(window.ChartManager) chartManager = new ChartManager();
 });
 
@@ -32,17 +28,24 @@ function initMQTT() {
     mqttClient = new MQTTClient(MQTT_CONFIG.broker, MQTT_CONFIG.port);
     
     mqttClient.on('connect', function() {
-        updateStatus(true);
+        const el = document.getElementById('mqttStatus');
+        el.querySelector('.status-dot').className = 'status-dot connected';
+        el.querySelector('.status-text').textContent = 'SYSTEM ONLINE';
+        el.style.borderColor = 'var(--success)';
+        
         mqttClient.subscribe(MQTT_CONFIG.topics.auth);
         mqttClient.subscribe(MQTT_CONFIG.topics.param);
     });
 
-    mqttClient.on('connectionLost', function() { updateStatus(false); });
+    mqttClient.on('connectionLost', function() {
+        const el = document.getElementById('mqttStatus');
+        el.querySelector('.status-dot').className = 'status-dot disconnected';
+        el.querySelector('.status-text').textContent = 'OFFLINE';
+    });
 
     mqttClient.on('messageArrived', function(message) {
         const topic = message.destinationName;
         const payload = JSON.parse(message.payloadString);
-
         if (topic === MQTT_CONFIG.topics.auth) handleAuth(payload);
         if (topic === MQTT_CONFIG.topics.param) handleParam(payload);
     });
@@ -50,53 +53,45 @@ function initMQTT() {
     mqttClient.connect(MQTT_CONFIG.username, MQTT_CONFIG.password, true);
 }
 
-function updateStatus(connected) {
-    const el = document.getElementById('mqttStatus');
-    const dot = el.querySelector('.status-dot');
-    const text = el.querySelector('.status-text');
-    if(connected) {
-        dot.className = 'status-dot connected';
-        text.textContent = 'SYSTEM ONLINE';
-        el.style.borderColor = 'var(--success)';
-    } else {
-        dot.className = 'status-dot disconnected';
-        text.textContent = 'SYSTEM OFFLINE';
-    }
-}
-
-// --- LOGIC UTAMA: UPDATE DASHBOARD & AUTO CAPTURE ---
 function handleAuth(data) {
-    // 1. Update Teks
+    // Update Teks Dashboard
     document.getElementById('lastFaceName').textContent = data.userName || "Unknown";
     document.getElementById('lastFaceSimilarity').textContent = (data.similarity || 0).toFixed(2);
-    document.getElementById('lastFaceStatus').textContent = data.status === 'success' ? "GRANTED" : "DENIED";
-    document.getElementById('lastFaceStatus').className = data.status === 'success' ? "status-badge" : "status-badge warning";
+    
+    const statusEl = document.getElementById('lastFaceStatus');
+    statusEl.textContent = data.status === 'success' ? "GRANTED" : "DENIED";
+    statusEl.className = data.status === 'success' ? "status-badge" : "status-badge warning";
+    
     document.getElementById('lastFaceTime').textContent = new Date().toLocaleTimeString();
 
-    // 2. AUTO CAPTURE FOTO (Mengambil dari ESP32)
+    // Update Statistik
+    document.getElementById('statTotal').innerText++;
+    if(data.status === 'success') document.getElementById('statSuccess').innerText++;
+    else document.getElementById('statFailed').innerText++;
+
+    // AUTO UPDATE FOTO DARI ESP32
+    // Menggunakan timestamp agar tidak cache
     const imgUrl = `http://${ESP32_IP}/capture?t=${Date.now()}`;
-    document.getElementById('lastFaceImage').src = imgUrl;
-    document.getElementById('lastFaceImage').style.display = 'block';
+    const imgEl = document.getElementById('lastFaceImage');
+    imgEl.src = imgUrl;
+    imgEl.style.display = 'block';
     document.getElementById('noFacePlaceholder').style.display = 'none';
 
-    // 3. Tambah Log
-    addLog(data);
+    // Tambah Log
+    const container = document.getElementById('activityLog');
+    const item = document.createElement('div');
+    item.className = `log-item ${data.status}`;
+    item.innerHTML = `<strong>${data.userName || 'Unknown'}</strong> <br> <span style="font-size:9px">${new Date().toLocaleTimeString()}</span>`;
+    container.prepend(item);
 }
 
 function handleParam(data) {
     document.getElementById('statDelay').textContent = data.delay || 0;
-    // Update charts here if needed
-}
-
-function addLog(data) {
-    const container = document.getElementById('activityLog');
-    const item = document.createElement('div');
-    item.className = `log-item ${data.status}`;
-    item.innerHTML = `
-        <span class="log-time">${new Date().toLocaleTimeString()}</span>
-        <strong>${data.userName || 'Unknown'}</strong> - Access ${data.status}
-    `;
-    container.prepend(item);
+    document.getElementById('statThroughput').textContent = data.throughput + " bps";
+    document.getElementById('statJitter').textContent = data.jitter + " ms";
+    document.getElementById('statPacketLoss').textContent = data.packetLoss + " %";
+    
+    if(chartManager) chartManager.updateChart(Date.now(), data.delay, data.throughput, data.messageSize, data.jitter, data.packetLoss);
 }
 
 function setupEventListeners() {
@@ -108,18 +103,15 @@ function setupEventListeners() {
 
     document.getElementById('closeStreamModal').addEventListener('click', () => {
         document.getElementById('streamModal').classList.remove('show');
-        document.getElementById('streamVideo').src = ""; // Stop stream biar hemat kuota
+        document.getElementById('streamVideo').src = ""; // Stop stream
     });
 
-    // Tombol Pintu
-    document.getElementById('btnBukaPintu').addEventListener('click', () => sendCommand('open'));
-    document.getElementById('btnKunciPintu').addEventListener('click', () => sendCommand('lock'));
-}
+    // Tombol Kontrol
+    const send = (action) => {
+        if(!mqttClient.isConnected) return alert("Offline!");
+        mqttClient.publish(MQTT_CONFIG.topics.control, JSON.stringify({ device: 'esp32cam', action: action }));
+    };
 
-function sendCommand(action) {
-    if(!mqttClient.isConnected) {
-        alert("System Offline!"); return;
-    }
-    const payload = JSON.stringify({ device: 'esp32cam', action: action });
-    mqttClient.publish(MQTT_CONFIG.topics.control, payload);
+    document.getElementById('btnBukaPintu').addEventListener('click', () => send('open'));
+    document.getElementById('btnKunciPintu').addEventListener('click', () => send('lock'));
 }

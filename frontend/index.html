@@ -5,17 +5,89 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Smart Door Admin System</title>
     
-    <link rel="stylesheet" href="css/style.css"> 
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel-stylesheet>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-    
-    <script src="js/mqtt-client.js"></script> 
-    <script src="js/chart-manager.js"></script> 
-    <script src="js/device-manager.js"></script>
+
+    <style>
+        /* --- CSS LENGKAP UNTUK SIDEBAR & LAYOUT --- */
+        :root {
+            --primary: #4e73df;
+            --bg-color: #f8f9fc;
+            --sidebar-width: 250px;
+        }
+
+        body { font-family: 'Nunito', sans-serif; background-color: var(--bg-color); overflow-x: hidden; }
+
+        .sidebar {
+            height: 100vh; width: var(--sidebar-width); position: fixed; top: 0; left: 0;
+            background: linear-gradient(180deg, #4e73df 10%, #224abe 100%);
+            color: white; padding-top: 20px; z-index: 1000;
+        }
+        .nav-item {
+            padding: 15px 25px; cursor: pointer; transition: 0.3s;
+            color: rgba(255,255,255,0.8); display: flex; align-items: center; text-decoration: none;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255,255,255,0.1); border-left: 5px solid #fff; color: white;
+        }
+        .nav-item i { margin-right: 15px; width: 25px; text-align: center; }
+
+        .main-content { margin-left: var(--sidebar-width); padding: 30px; }
+
+        /* TABS DEVICE */
+        .device-tabs { display: flex; gap: 15px; margin-bottom: 25px; }
+        .tab-btn {
+            flex: 1; padding: 15px; border: none; border-radius: 10px;
+            background: white; color: #858796; font-weight: 700;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.05); transition: 0.3s;
+            display: flex; align-items: center; justify-content: center; gap: 10px;
+        }
+        .tab-btn.active { background: #4e73df; color: white; box-shadow: 0 5px 15px rgba(78, 115, 223, 0.3); }
+
+        /* CARDS */
+        .card { border: none; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
+
+        /* VISUALS */
+        .cam-wrapper {
+            background: #000; border-radius: 10px; height: 350px;
+            display: flex; align-items: center; justify-content: center; position: relative;
+        }
+        .cam-wrapper img { max-width: 100%; max-height: 100%; border-radius: 5px; }
+        .rfid-wrapper, .finger-wrapper {
+            height: 350px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            border-radius: 10px; color: #858796;
+        }
+
+        /* CONTROL BUTTONS */
+        .btn-panel {
+            padding: 25px; border-radius: 15px; font-weight: 700; color: white;
+            text-align: center; transition: transform 0.2s; cursor: pointer;
+            margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .bg-open { background: linear-gradient(45deg, #1cc88a, #13855c); }
+        .bg-lock { background: linear-gradient(45deg, #e74a3b, #be2617); }
+        .bg-enroll { background: linear-gradient(45deg, #f6c23e, #dda20a); }
+
+        /* FIX GRAFIK MEMANJANG */
+        .chart-container {
+            position: relative;
+            height: 300px !important; 
+            width: 100%;
+        }
+
+        /* UTILS */
+        .page-section { display: none; animation: fadeIn 0.4s; }
+        .page-section.active { display: block; }
+        .dev-view { display: none; }
+        .dev-view.active { display: block; }
+        @keyframes fadeIn { from {opacity:0} to {opacity:1} }
+    </style>
 </head>
 <body>
 

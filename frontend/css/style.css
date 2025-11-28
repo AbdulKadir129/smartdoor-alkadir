@@ -502,3 +502,15 @@ body {
 .text-center { text-align: center; }
 .text-left { text-align: left; }
 .text-right { text-align: right; }
+
+
+/* ========================================
+   MAIN NAV TABS & VIEW SWITCH
+   ======================================== */
+
+/* Bar navigasi di bawah header */
+.main-nav {
+    background: var(--white);
+    border-bottom: 1px solid var(--gray-200);
+    box
+

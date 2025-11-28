@@ -713,3 +713,26 @@ function showToast(message, type) {
 var style = document.createElement('style');
 style.textContent = '@keyframes slideInRight{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}';
 document.head.appendChild(style);
+
+// ========================================
+// VIEW SWITCH (Dashboard / Control / Data)
+// ========================================
+document.addEventListener('DOMContentLoaded', function () {
+    const navTabs = document.querySelectorAll('.nav-tab');
+    const viewSections = document.querySelectorAll('.view-section');
+
+    navTabs.forEach(tab => {
+        tab.addEventListener('click', function () {
+            const targetView = this.getAttribute('data-view');
+
+            // Reset active di tab
+            navTabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+
+            // Reset active di view
+            viewSections.forEach(v => v.classList.remove('active'));
+            const targetEl = document.getElementById(targetView);
+            if (targetEl) targetEl.classList.add('active');
+        });
+    });
+});

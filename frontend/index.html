@@ -32,31 +32,226 @@
         </div>
     </div>
 
+    <!-- NAV MENU UNTUK GANTI VIEW -->
+    <nav class="main-nav">
+        <div class="main-nav-container">
+            <button class="nav-tab active" data-view="view-dashboard">Dashboard</button>
+            <button class="nav-tab" data-view="view-control">Control Panel</button>
+            <button class="nav-tab" data-view="view-data">Data Management</button>
+        </div>
+    </nav>
+
     <main class="dashboard">
         <div class="container-main">
-            <!-- PANEL KONTROL -->
-            <section class="panel-kontrol">
-                <h2 class="section-title">🎮 Panel Kontrol</h2>
-                <div class="control-grid">
-                    <button class="control-card green" id="btnBukaPintu">
-                        <span class="control-icon">🚪</span>
-                        <span class="control-text">BUKA PINTU</span>
-                    </button>
-                    <button class="control-card red" id="btnKunciPintu">
-                        <span class="control-icon">🔒</span>
-                        <span class="control-text">KUNCI PINTU</span>
-                    </button>
-                    <button class="control-card orange" id="btnTambahUser">
-                        <span class="control-icon">👤</span>
-                        <span class="control-text">TAMBAH USER</span>
-                    </button>
-                    <button class="control-card blue" id="btnExportLogs">
-                        <span class="control-icon">📥</span>
-                        <span class="control-text">EXPORT LOGS</span>
-                    </button>
-                </div>
-                <div class="delete-controls" style="margin-top: 24px;">
-                    <h3 class="section-subtitle">🗑️ Data Management</h3>
+
+            <!-- VIEW 1: DASHBOARD (3 ALAT + DATA + CHART + ACTIVITY LOG) -->
+            <div id="view-dashboard" class="view-section active">
+                <!-- DEVICE SECTION -->
+                <section class="device-section">
+                    <div class="device-cards">
+                        <div class="device-card active" data-device="esp32cam">
+                            <div class="device-badge" id="badgeEsp32cam">0</div>
+                            <span class="device-icon">📷</span>
+                            <span class="device-name">ESP32-CAM</span>
+                        </div>
+                        <div class="device-card" data-device="rfid">
+                            <div class="device-badge" id="badgeRfid">0</div>
+                            <span class="device-icon">💳</span>
+                            <span class="device-name">RFID</span>
+                        </div>
+                        <div class="device-card" data-device="fingerprint">
+                            <div class="device-badge" id="badgeFingerprint">0</div>
+                            <span class="device-icon">👆</span>
+                            <span class="device-name">Fingerprint</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- LAST RECOGNIZED FACE PANEL + LOG BUTTON (untuk ESP32CAM) -->
+                <section class="last-face-section">
+                    <h2 class="section-title">
+                        👤 Last Recognized Face
+                        <button id="btnShowHistory" class="btn-show-history" style="margin-left:12px;">Lihat Log</button>
+                    </h2>
+                    <div class="last-face-container">
+                        <div class="face-image-wrapper">
+                            <img id="lastFaceImage" src="" alt="No face recognized yet" style="display: none;">
+                            <div id="noFacePlaceholder" class="no-face-placeholder">
+                                <span class="placeholder-icon">📷</span>
+                                <p>No face recognition data yet</p>
+                            </div>
+                        </div>
+                        <div class="face-info">
+                            <div class="face-info-item">
+                                <span class="info-label">User Name:</span>
+                                <span class="info-value" id="lastFaceName">-</span>
+                            </div>
+                            <div class="face-info-item">
+                                <span class="info-label">User ID:</span>
+                                <span class="info-value" id="lastFaceId">-</span>
+                            </div>
+                            <div class="face-info-item">
+                                <span class="info-label">Status:</span>
+                                <span class="info-value" id="lastFaceStatus">-</span>
+                            </div>
+                            <div class="face-info-item">
+                                <span class="info-label">Time:</span>
+                                <span class="info-value" id="lastFaceTime">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- STATISTICS SECTION -->
+                <section class="statistics-section">
+                    <h2 class="section-title">📊 Statistics Overview</h2>
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="stat-label">TOTAL ACCESS</div>
+                            <div class="stat-value" id="statTotal">0</div>
+                            <div class="stat-unit">attempts</div>
+                        </div>
+                        <div class="stat-box success-box">
+                            <div class="stat-label">SUCCESS</div>
+                            <div class="stat-value" id="statSuccess">0</div>
+                            <div class="stat-unit">granted</div>
+                        </div>
+                        <div class="stat-box failed-box">
+                            <div class="stat-label">FAILED</div>
+                            <div class="stat-value" id="statFailed">0</div>
+                            <div class="stat-unit">denied</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">AVG DELAY</div>
+                            <div class="stat-value" id="statDelay">0</div>
+                            <div class="stat-unit">ms</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">AVG THROUGHPUT</div>
+                            <div class="stat-value" id="statThroughput">0</div>
+                            <div class="stat-unit">bps</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">AVG MESSAGE SIZE</div>
+                            <div class="stat-value" id="statMsgSize">0</div>
+                            <div class="stat-unit">bytes</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">AVG JITTER</div>
+                            <div class="stat-value" id="statJitter">0</div>
+                            <div class="stat-unit">ms</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-label">AVG PACKET LOSS</div>
+                            <div class="stat-value" id="statPacketLoss">0</div>
+                            <div class="stat-unit">%</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- MQTT PARAMETERS -->
+                <section class="mqtt-params-section">
+                    <h2 class="section-title">📡 MQTT Parameters</h2>
+                    <div class="params-detail-grid">
+                        <div class="param-detail-card">
+                            <div class="param-label">Payload</div>
+                            <div class="param-value" id="paramPayload">-</div>
+                        </div>
+                        <div class="param-detail-card">
+                            <div class="param-label">Topic</div>
+                            <div class="param-value" id="paramTopic">-</div>
+                        </div>
+                        <div class="param-detail-card">
+                            <div class="param-label">Delay</div>
+                            <div class="param-value" id="paramDelay">- ms</div>
+                        </div>
+                        <div class="param-detail-card">
+                            <div class="param-label">Throughput</div>
+                            <div class="param-value" id="paramThroughput">- bps</div>
+                        </div>
+                        <div class="param-detail-card">
+                            <div class="param-label">Message Size</div>
+                            <div class="param-value" id="paramSize">- bytes</div>
+                        </div>
+                        <div class="param-detail-card">
+                            <div class="param-label">QoS</div>
+                            <div class="param-value" id="paramQos">1</div>
+                        </div>
+                        <div class="param-detail-card">
+                            <div class="param-label">Jitter</div>
+                            <div class="param-value" id="paramJitter">- ms</div>
+                        </div>
+                        <div class="param-detail-card">
+                            <div class="param-label">Packet Loss</div>
+                            <div class="param-value" id="paramPacketLoss">- %</div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- CHART SECTION -->
+                <section class="chart-section">
+                    <h2 class="section-title">📈 Real-time Network Analysis</h2>
+
+                    <div class="chart-wrapper" style="height: 280px;">
+                        <h3>⏱️ Delay (ms)</h3>
+                        <canvas id="delayChart"></canvas>
+                    </div>
+                    <div class="chart-wrapper" style="height: 280px;">
+                        <h3>🚀 Throughput (bps)</h3>
+                        <canvas id="throughputChart"></canvas>
+                    </div>
+                    <div class="chart-wrapper" style="height: 280px;">
+                        <h3>📦 Message Size (Bytes)</h3>
+                        <canvas id="messageSizeChart"></canvas>
+                    </div>
+                    <div class="chart-wrapper" style="height: 280px;">
+                        <h3>📉 Jitter (ms)</h3>
+                        <canvas id="jitterChart"></canvas>
+                    </div>
+                    <div class="chart-wrapper" style="height: 280px;">
+                        <h3>📊 Packet Loss (%)</h3>
+                        <canvas id="packetLossChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- ACTIVITY LOG -->
+                <section class="activity-section">
+                    <h2 class="section-title">📋 Activity Log</h2>
+                    <div class="activity-log-container" id="activityLog">
+                        <div class="no-activity">No activity yet...</div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- VIEW 2: CONTROL PANEL (KONTROL PINTU + TAMBAH USER + EXPORT) -->
+            <div id="view-control" class="view-section">
+                <section class="panel-kontrol">
+                    <h2 class="section-title">🎮 Control Panel</h2>
+                    <div class="control-grid">
+                        <button class="control-card green" id="btnBukaPintu">
+                            <span class="control-icon">🚪</span>
+                            <span class="control-text">BUKA PINTU</span>
+                        </button>
+                        <button class="control-card red" id="btnKunciPintu">
+                            <span class="control-icon">🔒</span>
+                            <span class="control-text">KUNCI PINTU</span>
+                        </button>
+                        <button class="control-card orange" id="btnTambahUser">
+                            <span class="control-icon">👤</span>
+                            <span class="control-text">TAMBAH USER</span>
+                        </button>
+                        <button class="control-card blue" id="btnExportLogs">
+                            <span class="control-icon">📥</span>
+                            <span class="control-text">EXPORT LOGS</span>
+                        </button>
+                    </div>
+                </section>
+            </div>
+
+            <!-- VIEW 3: DATA MANAGEMENT (CLEAR LOGS + DOWNLOAD REPORT) -->
+            <div id="view-data" class="view-section">
+                <section class="panel-kontrol">
+                    <h2 class="section-title">🗑️ Data Management</h2>
                     <div class="control-grid">
                         <button class="control-card delete-auth" id="btnClearAuthLogs">
                             <span class="control-icon">🗑️</span>
@@ -75,197 +270,22 @@
                             <span class="control-text">DOWNLOAD REPORT</span>
                         </button>
                     </div>
-                </div>
-            </section>
-
-            <!-- DEVICE SECTION -->
-            <section class="device-section">
-                <div class="device-cards">
-                    <div class="device-card active" data-device="esp32cam">
-                        <div class="device-badge" id="badgeEsp32cam">0</div>
-                        <span class="device-icon">📷</span>
-                        <span class="device-name">ESP32-CAM</span>
-                    </div>
-                    <div class="device-card" data-device="rfid">
-                        <div class="device-badge" id="badgeRfid">0</div>
-                        <span class="device-icon">💳</span>
-                        <span class="device-name">RFID</span>
-                    </div>
-                    <div class="device-card" data-device="fingerprint">
-                        <div class="device-badge" id="badgeFingerprint">0</div>
-                        <span class="device-icon">👆</span>
-                        <span class="device-name">Fingerprint</span>
-                    </div>
-                </div>
-            </section>
-
-            <!-- LAST RECOGNIZED FACE PANEL + LOG BUTTON -->
-            <section class="last-face-section">
-                <h2 class="section-title">
-                  👤 Last Recognized Face
-                  <button id="btnShowHistory" class="btn-show-history" style="margin-left:12px;">Lihat Log</button>
-                </h2>
-                <div class="last-face-container">
-                    <div class="face-image-wrapper">
-                        <img id="lastFaceImage" src="" alt="No face recognized yet" style="display: none;">
-                        <div id="noFacePlaceholder" class="no-face-placeholder">
-                            <span class="placeholder-icon">📷</span>
-                            <p>No face recognition data yet</p>
-                        </div>
-                    </div>
-                    <div class="face-info">
-                        <div class="face-info-item">
-                            <span class="info-label">User Name:</span>
-                            <span class="info-value" id="lastFaceName">-</span>
-                        </div>
-                        <div class="face-info-item">
-                            <span class="info-label">User ID:</span>
-                            <span class="info-value" id="lastFaceId">-</span>
-                        </div>
-                        <div class="face-info-item">
-                            <span class="info-label">Status:</span>
-                            <span class="info-value" id="lastFaceStatus">-</span>
-                        </div>
-                        <div class="face-info-item">
-                            <span class="info-label">Time:</span>
-                            <span class="info-value" id="lastFaceTime">-</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- MODAL FACE HISTORY LOG -->
-            <div id="faceHistoryModal" class="modal">
-                <div class="modal-content" style="max-width:500px;">
-                    <div class="modal-header">
-                        <h2>Face Recognition Log</h2>
-                        <span class="modal-close" id="closeHistoryModal">&times;</span>
-                    </div>
-                    <div id="faceRecognitionHistory" class="face-history-log"></div>
-                </div>
+                </section>
             </div>
 
-            <!-- STATISTICS SECTION -->
-            <section class="statistics-section">
-                <h2 class="section-title">📊 Statistics Overview</h2>
-                <div class="stats-grid">
-                    <div class="stat-box">
-                        <div class="stat-label">TOTAL ACCESS</div>
-                        <div class="stat-value" id="statTotal">0</div>
-                        <div class="stat-unit">attempts</div>
-                    </div>
-                    <div class="stat-box success-box">
-                        <div class="stat-label">SUCCESS</div>
-                        <div class="stat-value" id="statSuccess">0</div>
-                        <div class="stat-unit">granted</div>
-                    </div>
-                    <div class="stat-box failed-box">
-                        <div class="stat-label">FAILED</div>
-                        <div class="stat-value" id="statFailed">0</div>
-                        <div class="stat-unit">denied</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">AVG DELAY</div>
-                        <div class="stat-value" id="statDelay">0</div>
-                        <div class="stat-unit">ms</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">AVG THROUGHPUT</div>
-                        <div class="stat-value" id="statThroughput">0</div>
-                        <div class="stat-unit">bps</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">AVG MESSAGE SIZE</div>
-                        <div class="stat-value" id="statMsgSize">0</div>
-                        <div class="stat-unit">bytes</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">AVG JITTER</div>
-                        <div class="stat-value" id="statJitter">0</div>
-                        <div class="stat-unit">ms</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-label">AVG PACKET LOSS</div>
-                        <div class="stat-value" id="statPacketLoss">0</div>
-                        <div class="stat-unit">%</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- MQTT PARAMETERS -->
-            <section class="mqtt-params-section">
-                <h2 class="section-title">📡 MQTT Parameters</h2>
-                <div class="params-detail-grid">
-                    <div class="param-detail-card">
-                        <div class="param-label">Payload</div>
-                        <div class="param-value" id="paramPayload">-</div>
-                    </div>
-                    <div class="param-detail-card">
-                        <div class="param-label">Topic</div>
-                        <div class="param-value" id="paramTopic">-</div>
-                    </div>
-                    <div class="param-detail-card">
-                        <div class="param-label">Delay</div>
-                        <div class="param-value" id="paramDelay">- ms</div>
-                    </div>
-                    <div class="param-detail-card">
-                        <div class="param-label">Throughput</div>
-                        <div class="param-value" id="paramThroughput">- bps</div>
-                    </div>
-                    <div class="param-detail-card">
-                        <div class="param-label">Message Size</div>
-                        <div class="param-value" id="paramSize">- bytes</div>
-                    </div>
-                    <div class="param-detail-card">
-                        <div class="param-label">QoS</div>
-                        <div class="param-value" id="paramQos">1</div>
-                    </div>
-                    <div class="param-detail-card">
-                        <div class="param-label">Jitter</div>
-                        <div class="param-value" id="paramJitter">- ms</div>
-                    </div>
-                    <div class="param-detail-card">
-                        <div class="param-label">Packet Loss</div>
-                        <div class="param-value" id="paramPacketLoss">- %</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- CHART SECTION -->
-            <section class="chart-section">
-                <h2 class="section-title">📈 Real-time Network Analysis</h2>
-                
-                <div class="chart-wrapper" style="height: 280px;">
-                    <h3>⏱️ Delay (ms)</h3>
-                    <canvas id="delayChart"></canvas>
-                </div>
-                <div class="chart-wrapper" style="height: 280px;">
-                    <h3>🚀 Throughput (bps)</h3>
-                    <canvas id="throughputChart"></canvas>
-                </div>
-                <div class="chart-wrapper" style="height: 280px;">
-                    <h3>📦 Message Size (Bytes)</h3>
-                    <canvas id="messageSizeChart"></canvas>
-                </div>
-                <div class="chart-wrapper" style="height: 280px;">
-                    <h3>📉 Jitter (ms)</h3>
-                    <canvas id="jitterChart"></canvas>
-                </div>
-                <div class="chart-wrapper" style="height: 280px;">
-                    <h3>📊 Packet Loss (%)</h3>
-                    <canvas id="packetLossChart"></canvas>
-                </div>
-            </section>
-
-            <!-- ACTIVITY LOG -->
-            <section class="activity-section">
-                <h2 class="section-title">📋 Activity Log</h2>
-                <div class="activity-log-container" id="activityLog">
-                    <div class="no-activity">No activity yet...</div>
-                </div>
-            </section>
         </div>
     </main>
+
+    <!-- MODAL FACE HISTORY LOG -->
+    <div id="faceHistoryModal" class="modal">
+        <div class="modal-content" style="max-width:500px;">
+            <div class="modal-header">
+                <h2>Face Recognition Log</h2>
+                <span class="modal-close" id="closeHistoryModal">&times;</span>
+            </div>
+            <div id="faceRecognitionHistory" class="face-history-log"></div>
+        </div>
+    </div>
 
     <!-- MODAL ADD USER -->
     <div id="modalAddUser" class="modal">
@@ -316,5 +336,28 @@
     <script src="js/chart-manager.js"></script>
     <script src="js/device-manager.js"></script>
     <script src="js/main.js"></script>
+
+    <!-- SCRIPT UNTUK SWITCH VIEW (TAMBAHKAN DI AKHIR) -->
+    <script>
+        // Handle menu navigation untuk switch tampilan
+        document.addEventListener('DOMContentLoaded', function() {
+            const navTabs = document.querySelectorAll('.nav-tab');
+            const viewSections = document.querySelectorAll('.view-section');
+
+            navTabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const targetView = this.getAttribute('data-view');
+
+                    // Remove active dari semua tab dan view
+                    navTabs.forEach(t => t.classList.remove('active'));
+                    viewSections.forEach(v => v.classList.remove('active'));
+
+                    // Tambah active ke tab dan view yang dipilih
+                    this.classList.add('active');
+                    document.getElementById(targetView).classList.add('active');
+                });
+            });
+        });
+    </script>
 </body>
 </html>

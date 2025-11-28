@@ -1,224 +1,323 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Door Admin System</title>
-    
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel-stylesheet>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
-    
+    <title>Smart Door - Security Admin Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
-
-    <style>
-        /* --- CSS LENGKAP UNTUK SIDEBAR & LAYOUT --- */
-        :root {
-            --primary: #4e73df;
-            --bg-color: #f8f9fc;
-            --sidebar-width: 250px;
-        }
-
-        body { font-family: 'Nunito', sans-serif; background-color: var(--bg-color); overflow-x: hidden; }
-
-        .sidebar {
-            height: 100vh; width: var(--sidebar-width); position: fixed; top: 0; left: 0;
-            background: linear-gradient(180deg, #4e73df 10%, #224abe 100%);
-            color: white; padding-top: 20px; z-index: 1000;
-        }
-        .nav-item {
-            padding: 15px 25px; cursor: pointer; transition: 0.3s;
-            color: rgba(255,255,255,0.8); display: flex; align-items: center; text-decoration: none;
-        }
-        .nav-item:hover, .nav-item.active {
-            background: rgba(255,255,255,0.1); border-left: 5px solid #fff; color: white;
-        }
-        .nav-item i { margin-right: 15px; width: 25px; text-align: center; }
-
-        .main-content { margin-left: var(--sidebar-width); padding: 30px; }
-
-        /* TABS DEVICE */
-        .device-tabs { display: flex; gap: 15px; margin-bottom: 25px; }
-        .tab-btn {
-            flex: 1; padding: 15px; border: none; border-radius: 10px;
-            background: white; color: #858796; font-weight: 700;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.05); transition: 0.3s;
-            display: flex; align-items: center; justify-content: center; gap: 10px;
-        }
-        .tab-btn.active { background: #4e73df; color: white; box-shadow: 0 5px 15px rgba(78, 115, 223, 0.3); }
-
-        /* CARDS */
-        .card { border: none; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
-
-        /* VISUALS */
-        .cam-wrapper {
-            background: #000; border-radius: 10px; height: 350px;
-            display: flex; align-items: center; justify-content: center; position: relative;
-        }
-        .cam-wrapper img { max-width: 100%; max-height: 100%; border-radius: 5px; }
-        .rfid-wrapper, .finger-wrapper {
-            height: 350px; display: flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-            border-radius: 10px; color: #858796;
-        }
-
-        /* CONTROL BUTTONS */
-        .btn-panel {
-            padding: 25px; border-radius: 15px; font-weight: 700; color: white;
-            text-align: center; transition: transform 0.2s; cursor: pointer;
-            margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .bg-open { background: linear-gradient(45deg, #1cc88a, #13855c); }
-        .bg-lock { background: linear-gradient(45deg, #e74a3b, #be2617); }
-        .bg-enroll { background: linear-gradient(45deg, #f6c23e, #dda20a); }
-
-        /* FIX GRAFIK MEMANJANG */
-        .chart-container {
-            position: relative;
-            height: 300px !important; 
-            width: 100%;
-        }
-
-        /* UTILS */
-        .page-section { display: none; animation: fadeIn 0.4s; }
-        .page-section.active { display: block; }
-        .dev-view { display: none; }
-        .dev-view.active { display: block; }
-        @keyframes fadeIn { from {opacity:0} to {opacity:1} }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-    <nav class="sidebar">
-        <div class="text-center mb-4 fw-bold fs-5"><i class="fas fa-shield-alt"></i> SECURITY ADMIN</div>
-        <div class="nav-item active" onclick="switchPage('dashboard')"><i class="fas fa-tachometer-alt"></i> Dashboard</div>
-        <div class="nav-item" onclick="switchPage('network')"><i class="fas fa-chart-line"></i> Network QoS</div>
-        <div class="nav-item" onclick="switchPage('control')"><i class="fas fa-gamepad"></i> Control Center</div>
-        <div class="nav-item" onclick="switchPage('data')"><i class="fas fa-database"></i> Data Logs</div>
-    </nav>
-
-    <main class="main-content">
-        
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h3 class="text-gray-800" id="page-title">Dashboard Overview</h3>
-            <span id="mqtt-status" class="badge bg-secondary">Connecting...</span>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="logo">
+            <h2>🔒 SmartDoor</h2>
+            <p>Security System v2.0</p>
         </div>
-
-        <div class="device-tabs">
-            <button class="tab-btn active" onclick="switchDevice('cam')" id="btn-cam"><i class="fas fa-camera"></i> ESP32-CAM</button>
-            <button class="tab-btn" onclick="switchDevice('rfid')" id="btn-rfid"><i class="fas fa-id-card"></i> RFID</button>
-            <button class="tab-btn" onclick="switchDevice('finger')" id="btn-finger"><i class="fas fa-fingerprint"></i> FINGERPRINT</button>
+        <nav>
+            <a href="#" class="nav-item active" data-tab="dashboard">
+                <span>📊</span> Dashboard
+            </a>
+            <a href="#" class="nav-item" data-tab="qos">
+                <span>📈</span> Network QoS
+            </a>
+            <a href="#" class="nav-item" data-tab="control">
+                <span>⚙️</span> Control
+            </a>
+            <a href="#" class="nav-item" data-tab="logs">
+                <span>📋</span> Logs
+            </a>
+        </nav>
+        <div class="sidebar-footer">
+            <div id="mqttStatus" class="mqtt-status">
+                <span class="status-dot disconnected"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+            <button id="logoutBtn" class="logout-btn">🚪 Logout</button>
         </div>
+    </div>
 
-        <div id="page-dashboard" class="page-section active">
-            <div class="row">
-                <div class="col-lg-8">
-                    <div class="card h-100">
-                        <div class="card-header d-flex justify-content-between">
-                            <span><i class="fas fa-eye"></i> Live Monitoring</span>
-                            <span id="active-device-label" class="badge bg-primary">ESP32-CAM</span>
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <!-- DASHBOARD TAB -->
+        <div id="dashboard" class="tab-content active">
+            <div class="header">
+                <h1>Dashboard Overview</h1>
+                <div class="header-right">
+                    <span class="timestamp">Last update: <span id="lastUpdate">--</span></span>
+                    <span id="userName" class="user-name"></span>
+                </div>
+            </div>
+
+            <!-- STATUS CARDS 3 DEVICES -->
+            <div class="status-cards">
+                <div class="status-card green device-card" data-device="esp32cam">
+                    <div class="card-icon">📷</div>
+                    <h3>ESP32-CAM</h3>
+                    <p class="status online">Online</p>
+                    <div class="badge-container">
+                        <span id="badgeEsp32cam" class="badge">0</span>
+                    </div>
+                    <div class="stats">
+                        <span>Delay: <strong id="esp32-delay">0 ms</strong></span>
+                    </div>
+                </div>
+
+                <div class="status-card blue device-card" data-device="rfid">
+                    <div class="card-icon">🏷️</div>
+                    <h3>RFID</h3>
+                    <p class="status online">Online</p>
+                    <div class="badge-container">
+                        <span id="badgeRfid" class="badge">0</span>
+                    </div>
+                    <div class="stats">
+                        <span>Delay: <strong id="rfid-delay">0 ms</strong></span>
+                    </div>
+                </div>
+
+                <div class="status-card orange device-card" data-device="fingerprint">
+                    <div class="card-icon">👆</div>
+                    <h3>Fingerprint</h3>
+                    <p class="status online">Online</p>
+                    <div class="badge-container">
+                        <span id="badgeFingerprint" class="badge">0</span>
+                    </div>
+                    <div class="stats">
+                        <span>Delay: <strong id="fingerprint-delay">0 ms</strong></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- LIVE STREAM + FACE RECOGNITION -->
+                <div class="card full-width">
+                    <div class="card-header">
+                        <h3>📷 ESP32-CAM Live + Face Recognition</h3>
+                        <button id="btnShowHistory" class="btn-small">📋 History</button>
+                    </div>
+                    <div class="stream-face-container">
+                        <div class="stream-section">
+                            <img id="cam-stream" src="http://192.168.1.100/stream" alt="Live Stream">
+                            <p class="help-text">Ganti IP ESP32-CAM di main.js</p>
                         </div>
-                        <div class="card-body">
-                            <div id="view-cam" class="dev-view active">
-                                <div class="cam-wrapper">
-                                    <span class="badge bg-danger position-absolute top-0 end-0 m-3">LIVE</span>
-                                    <img id="cam-feed" src="https://via.placeholder.com/640x360?text=Waiting+for+Face..." alt="Feed">
+                        <div class="face-section">
+                            <div id="lastFacePanel">
+                                <div id="noFacePlaceholder">
+                                    <div class="face-placeholder-icon">👤</div>
+                                    <p>No face detected</p>
                                 </div>
-                            </div>
-                            <div id="view-rfid" class="dev-view">
-                                <div class="rfid-wrapper"><i class="fas fa-wifi fa-5x mb-3 text-primary"></i><h4>Waiting for Card...</h4></div>
-                            </div>
-                            <div id="view-finger" class="dev-view">
-                                <div class="finger-wrapper"><i class="fas fa-fingerprint fa-5x mb-3 text-success"></i><h4>Place Finger...</h4></div>
+                                <img id="lastFaceImage" class="face-image" style="display:none;">
+                                <div id="faceInfo" class="face-info" style="display:none;">
+                                    <h4 id="lastFaceName">-</h4>
+                                    <p>ID: <span id="lastFaceId">-</span></p>
+                                    <p>Status: <span id="lastFaceStatus">-</span></p>
+                                    <p>Time: <span id="lastFaceTime">-</span></p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="col-lg-4">
-                    <div class="card h-100">
-                        <div class="card-header border-0 bg-white pb-0"><i class="fas fa-history me-2 text-primary"></i> Last Authenticated</div>
-                        <div class="card-body">
-                            <div class="text-center mb-4 mt-2">
-                                <div style="width: 100px; height: 100px; background: #f1f3f9; border-radius: 50%; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
-                                    <i class="fas fa-user fa-4x text-secondary" id="user-icon"></i>
-                                </div>
-                            </div>
-                            <div class="px-2">
-                                <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                                    <span class="text-muted">User Name:</span><span class="fw-bold text-dark" id="user-name">-</span>
-                                </div>
-                                <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                                    <span class="text-muted">User ID:</span><span class="fw-bold text-dark" id="user-id">-</span>
-                                </div>
-                                <div class="d-flex justify-content-between mb-3 border-bottom pb-2">
-                                    <span class="text-muted">Status:</span><span class="fw-bold" id="auth-status">-</span>
-                                </div>
-                                <div class="d-flex justify-content-between mb-0">
-                                    <span class="text-muted">Time:</span><span class="fw-bold text-dark" id="auth-time">-</span>
-                                </div>
-                            </div>
+                <!-- STATS + ACTIVITY LOG -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📊 Real-time Statistics</h3>
+                    </div>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <label>Total Auth</label>
+                            <span id="statTotal">0</span>
                         </div>
+                        <div class="stat-item">
+                            <label>Success</label>
+                            <span id="statSuccess">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Failed</label>
+                            <span id="statFailed">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Avg Delay</label>
+                            <span id="statDelay">0 ms</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Throughput</label>
+                            <span id="statThroughput">0 bps</span>
+                        </div>
+                        <div class="stat-item">
+                            <label>Msg Size</label>
+                            <span id="statMsgSize">0 B</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACTIVITY LOG -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>📋 Recent Activity</h3>
+                    </div>
+                    <div id="activityLog" class="activity-log">
+                        <div class="no-activity">Waiting for authentication...</div>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div id="page-network" class="page-section">
-            <div class="row mb-4">
-                <div class="col"><div class="card p-3 text-center border-start border-4 border-danger"><h4 id="val-delay">0 ms</h4><small>DELAY</small></div></div>
-                <div class="col"><div class="card p-3 text-center border-start border-4 border-warning"><h4 id="val-jitter">0 ms</h4><small>JITTER</small></div></div>
-                <div class="col"><div class="card p-3 text-center border-start border-4 border-primary"><h4 id="val-throughput">0 bps</h4><small>THROUGHPUT</small></div></div>
-                <div class="col"><div class="card p-3 text-center border-start border-4 border-dark"><h4 id="val-loss">0 %</h4><small>LOSS</small></div></div>
-                <div class="col"><div class="card p-3 text-center border-start border-4 border-success"><h4 id="val-size">0 B</h4><small>MSG SIZE</small></div></div>
+        <!-- QOS TAB -->
+        <div id="qos" class="tab-content">
+            <div class="header">
+                <h1>Network QoS Analysis</h1>
+                <select id="device-select-qos">
+                    <option value="esp32cam">📷 ESP32-CAM</option>
+                    <option value="rfid">🏷️ RFID</option>
+                    <option value="fingerprint">👆 Fingerprint</option>
+                </select>
             </div>
-            
-            <div class="row">
-                <div class="col-lg-6 mb-4"><div class="card h-100 shadow-sm"><div class="card-body"><div class="chart-container"><canvas id="chartDelay"></canvas></div></div></div></div>
-                <div class="col-lg-6 mb-4"><div class="card h-100 shadow-sm"><div class="card-body"><div class="chart-container"><canvas id="chartJitter"></canvas></div></div></div></div>
-                <div class="col-lg-6 mb-4"><div class="card h-100 shadow-sm"><div class="card-body"><div class="chart-container"><canvas id="chartThroughput"></canvas></div></div></div></div>
-                <div class="col-lg-6 mb-4"><div class="card h-100 shadow-sm"><div class="card-body"><div class="chart-container"><canvas id="chartLoss"></canvas></div></div></div></div>
-                <div class="col-lg-6 mb-4 mx-auto"><div class="card h-100 shadow-sm"><div class="card-body"><div class="chart-container"><canvas id="chartSize"></canvas></div></div></div></div>
-            </div>
-        </div>
 
-        <div id="page-control" class="page-section">
-            <div class="row justify-content-center mt-4">
-                <div class="col-md-4"><div class="btn-panel bg-open" onclick="kirimPerintah('open')"><i class="fas fa-door-open fa-3x mb-3"></i><br>BUKA PINTU</div></div>
-                <div class="col-md-4"><div class="btn-panel bg-lock" onclick="kirimPerintah('lock')"><i class="fas fa-lock fa-3x mb-3"></i><br>KUNCI PINTU</div></div>
-                <div class="col-md-4"><div class="btn-panel bg-enroll" onclick="kirimPerintah('enroll')"><i class="fas fa-user-plus fa-3x mb-3"></i><br>DAFTAR WAJAH</div></div>
-            </div>
-            <div class="card mt-4">
-                <div class="card-header">System Status</div>
-                <div class="card-body"><p>Status Pintu: <strong>Terkunci (Default)</strong></p><p>Koneksi MQTT: <strong class="text-success">Online</strong></p></div>
-            </div>
-        </div>
-
-        <div id="page-data" class="page-section">
-            <div class="card">
-                <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                    <span class="fw-bold"><i class="fas fa-list-alt me-2 text-primary"></i> Unified System Logs</span>
-                    <button class="btn btn-sm btn-outline-danger" onclick="document.getElementById('log-table-body').innerHTML=''">
-                        <i class="fas fa-trash"></i> Clear
-                    </button>
+            <!-- PARAM DISPLAY -->
+            <div class="param-display">
+                <div class="param-item">
+                    <label>Payload:</label>
+                    <span id="paramPayload">-</span>
                 </div>
-                <div class="card-body table-responsive p-0">
-                    <table class="table table-hover table-striped align-middle mb-0">
-                        <thead class="table-dark">
-                            <tr><th>Time</th><th>Device</th><th>User ID</th><th>Data/Score</th><th>QoS Delay</th><th>Status</th></tr>
-                        </thead>
-                        <tbody id="log-table-body">
-                            </tbody>
-                    </table>
+                <div class="param-item">
+                    <label>Topic:</label>
+                    <span id="paramTopic">-</span>
+                </div>
+                <div class="param-item">
+                    <label>Delay:</label>
+                    <span id="paramDelay">0 ms</span>
+                </div>
+                <div class="param-item">
+                    <label>Throughput:</label>
+                    <span id="paramThroughput">0 bps</span>
+                </div>
+                <div class="param-item">
+                    <label>Size:</label>
+                    <span id="paramSize">0 B</span>
+                </div>
+                <div class="param-item">
+                    <label>QoS:</label>
+                    <span id="paramQos">1</span>
+                </div>
+                <div class="param-item">
+                    <label>Jitter:</label>
+                    <span id="paramJitter">0 ms</span>
+                </div>
+                <div class="param-item">
+                    <label>Loss:</label>
+                    <span id="paramPacketLoss">0 %</span>
                 </div>
             </div>
+
+            <!-- QOS CHARTS -->
+            <div class="charts-grid">
+                <div class="card">
+                    <h3>Delay (ms)</h3>
+                    anvas id="chartDelay"></canvas>
+                </div>
+                <div class="card">
+                    <h3>Throughput (B/s)</h3>
+                    anvas id="chartThroughput"></canvas>
+                </div>
+                <div class="card">
+                    <h3>Jitter (ms)</h3>
+                    anvas id="chartJitter"></canvas>
+                </div>
+                <div class="card">
+                    <h3>Packet Loss (%)</h3>
+                    anvas id="chartPacketLoss"></canvas>
+                </div>
+            </div>
         </div>
 
-    </main>
+        <!-- CONTROL TAB -->
+        <div id="control" class="tab-content">
+            <div class="header">
+                <h1>Control Panel</h1>
+            </div>
+            <div class="control-grid">
+                <div class="control-card">
+                    <h3>🚪 Door Control</h3>
+                    <button id="btnBukaPintu" class="control-btn large green">🔓 OPEN DOOR</button>
+                    <button id="btnKunciPintu" class="control-btn large red">🔒 LOCK DOOR</button>
+                </div>
+                <div class="control-card">
+                    <h3>👥 User Management</h3>
+                    <button id="btnTambahUser" class="control-btn">➕ Add User</button>
+                    <button id="btnExportLogs" class="control-btn">📥 Export Logs</button>
+                </div>
+                <div class="control-card">
+                    <h3>🗑️ Clear Logs</h3>
+                    <button id="btnClearAuthLogs" class="control-btn red">Clear Auth</button>
+                    <button id="btnClearParamLogs" class="control-btn red">Clear Param</button>
+                    <button id="btnClearAllLogs" class="control-btn red">Clear All</button>
+                </div>
+            </div>
+        </div>
 
-    <script src="js/main.js"></script>
-    
+        <!-- LOGS TAB -->
+        <div id="logs" class="tab-content">
+            <div class="header">
+                <h1>Data Logs</h1>
+                <button id="btnDownloadReport" class="btn-export">📄 Download Report</button>
+            </div>
+            <div class="table-container">
+                <table id="logsTable">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Device</th>
+                            <th>Status</th>
+                            <th>Delay</th>
+                            <th>Throughput</th>
+                            <th>Loss</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS -->
+    <div id="faceHistoryModal" class="modal">
+        <div class="modal-content">
+            <span id="closeHistoryModal" class="modal-close">&times;</span>
+            <h3>Face Recognition History</h3>
+            <div id="faceRecognitionHistory"></div>
+        </div>
+    </div>
+
+    <div id="modalAddUser" class="modal">
+        <div class="modal-content">
+            <span class="modal-close">&times;</span>
+            <h3>Add New User</h3>
+            <form id="formAddUser">
+                <input type="text" id="inputUsername" placeholder="Username" required>
+                <input type="password" id="inputPassword" placeholder="Password" required>
+                
+                <div id="groupFaceId" style="display:none;">
+                    <input type="text" id="inputFaceId" placeholder="Face ID">
+                </div>
+                <div id="groupRfidUid" style="display:none;">
+                    <input type="text" id="inputRfidUid" placeholder="RFID UID">
+                </div>
+                <div id="groupFingerId" style="display:none;">
+                    <input type="text" id="inputFingerId" placeholder="Fingerprint ID">
+                </div>
+                
+                <div id="modalMessage" class="modal-message"></div>
+                <button type="submit" class="btn-primary">Add User</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION -->
+    <div id="notificationToast" class="toast">
+        <span id="toastMessage"></span>
+    </div>
+
+    <script src="main.js"></script>
 </body>
 </html>

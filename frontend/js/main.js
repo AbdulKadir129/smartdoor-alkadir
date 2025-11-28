@@ -1,9 +1,10 @@
 // ========================================
-// MAIN.JS - FINAL INTEGRATED LOGIC
-// Menyatukan Logika QoS, MQTT Handling, UI Control, dan Backend Bridge.
+// MAIN.JS - SMART DOOR DASHBOARD
+// 100% Real MQTT Data + Render Backend
+// Untuk Skripsi Analisis Jaringan MQTT QoS
 // ========================================
 
-window.BASE_URL = 'https://smartdoor-alkadir.onrender.com'; // Ganti ini jika server Anda berubah
+window.BASE_URL = 'https://smartdoor-alkadir.onrender.com';
 
 const MQTT_CONFIG = {
     broker: '4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud',
@@ -17,337 +18,543 @@ const MQTT_CONFIG = {
     }
 };
 
-// Variabel Global dan State
+// Global state
 let mqttClient = null;
 let chartManager = null;
 let deviceManager = null;
 let currentDevice = 'esp32cam';
-const ESP32_IP = "192.168.1.15"; // IP Kamera Anda
+let faceHistoryLog = [];
 const MAX_HISTORY = 15;
 
-// State untuk menyimpan total dan rata-rata QoS per device
 let realtimeStats = {
-    esp32cam: { total: 0, success: 0, failed: 0, paramCount: 0, totalDelay: 0, totalThroughput: 0, totalMsgSize: 0, totalJitter: 0, totalPacketLoss: 0, avgDelay: 0, avgThroughput: 0, avgMsgSize: 0, avgJitter: 0, avgPacketLoss: 0 },
-    rfid: { total: 0, success: 0, failed: 0, paramCount: 0, totalDelay: 0, totalThroughput: 0, totalMsgSize: 0, totalJitter: 0, totalPacketLoss: 0, avgDelay: 0, avgThroughput: 0, avgMsgSize: 0, avgJitter: 0, avgPacketLoss: 0 },
-    fingerprint: { total: 0, success: 0, failed: 0, paramCount: 0, totalDelay: 0, totalThroughput: 0, totalMsgSize: 0, totalJitter: 0, totalPacketLoss: 0, avgDelay: 0, avgThroughput: 0, avgMsgSize: 0, avgJitter: 0, avgPacketLoss: 0 }
+    esp32cam: { total: 0, success: 0, failed: 0, paramCount: 0, avgDelay: 0, avgThroughput: 0, avgMsgSize: 0, avgJitter: 0, avgPacketLoss: 0 },
+    rfid: { total: 0, success: 0, failed: 0, paramCount: 0, avgDelay: 0, avgThroughput: 0, avgMsgSize: 0, avgJitter: 0, avgPacketLoss: 0 },
+    fingerprint: { total: 0, success: 0, failed: 0, paramCount: 0, avgDelay: 0, avgThroughput: 0, avgMsgSize: 0, avgJitter: 0, avgPacketLoss: 0 }
 };
 
-let lastDelayPerDevice = { esp32cam: null, rfid: null, fingerprint: null };
+let lastDelayPerDevice = {
+    esp32cam: null,
+    rfid: null,
+    fingerprint: null
+};
+
+// ESP32-CAM IP (GANTI SESUAI IP KAMU)
+const CAM_IP = '192.168.1.100';
 
 // ========================================
-// INITIALIZATION & EVENT LISTENERS
+// MQTT CLIENT CLASS
 // ========================================
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Initializing Smart Door Dashboard...');
-    
-    const userName = sessionStorage.getItem('userName');
-    if (!userName) {
-        window.location.href = 'login.html'; 
-        return;
+class MQTTClient {
+    constructor(broker, port) {
+        this.broker = `wss://${broker}:${port}/mqtt`;
+        this.client = new Paho.MQTT.Client(this.broker, 'smartdoor-web-' + Math.random().toString(16).substr(2, 8));
+        this.client.onMessageArrived = this.onMessageArrived.bind(this);
+        this.callbacks = {};
     }
-    const userNameEl = document.getElementById('userName');
-    if (userNameEl) userNameEl.textContent = userName;
-    
-    // INIT MANAGERS (Asumsi Class sudah dimuat)
-    if (typeof DeviceManager === 'function') deviceManager = new DeviceManager();
-    if (typeof ChartManager === 'function') chartManager = new ChartManager();
-    
-    initMQTT();
-    setupEventListeners();
-    
-    // Terapkan default view setelah semua dimuat
-    switchDevice('dashboard'); 
-    switchDevice('cam'); // Default aktif di ESP32-CAM
-});
 
-function setupEventListeners() {
-    // 1. Device Switching
-    document.querySelectorAll('.device-card').forEach(function(card) {
-        card.addEventListener('click', function() {
-            const device = this.getAttribute('data-device');
-            // Logika switching ada di fungsi switchDevice
-            switchDevice(device); 
+    on(event, callback) {
+        this.callbacks[event] = callback;
+    }
+
+    connect(username, password, cleanSession) {
+        this.client.connect({
+            onSuccess: () => {
+                if (this.callbacks.connect) this.callbacks.connect();
+            },
+            onFailure: (e) => {
+                console.error('MQTT connect failed:', e);
+                setTimeout(() => this.connect(username, password, cleanSession), 5000);
+            },
+            userName: username,
+            password: password,
+            useSSL: true,
+            cleanSession: cleanSession
         });
-    });
-    
-    // 2. Control Buttons
-    document.getElementById('btnBukaPintu').addEventListener('click', function() { handleDoorControl('open'); });
-    document.getElementById('btnKunciPintu').addEventListener('click', function() { handleDoorControl('lock'); });
-    document.getElementById('btnTambahUser').addEventListener('click', handleAddUser);
-    
-    // 3. Data Management Buttons
-    document.getElementById('btnExportLogs').addEventListener('click', handleExportLogs);
-    document.getElementById('btnClearAuthLogs').addEventListener('click', function() { handleClearLogs('auth'); });
-    document.getElementById('btnClearParamLogs').addEventListener('click', function() { handleClearLogs('param'); });
-    document.getElementById('btnClearAllLogs').addEventListener('click', handleClearAllLogs);
-    document.getElementById('btnDownloadReport').addEventListener('click', handleDownloadReport);
-    
-    // 4. Logout
-    document.getElementById('logoutBtn').addEventListener('click', handleLogout);
-    
-    // 5. User Form Submit (Modal)
-    var formAdd = document.getElementById('formAddUser');
-    if (formAdd) formAdd.addEventListener('submit', handleSubmitUser);
+    }
 
-    // 6. Modal Close
-    var modal = document.getElementById('modalAddUser');
-    if (modal) {
-        var closeBtn = modal.querySelector('.modal-close');
-        if (closeBtn) closeBtn.addEventListener('click', function() { modal.classList.remove('show'); });
-        window.addEventListener('click', function(e) { if (e.target === modal) modal.classList.remove('show'); });
+    subscribe(topic, qos) {
+        this.client.subscribe(topic, { qos: qos });
+    }
+
+    publish(topic, message, qos) {
+        const payload = new Paho.MQTT.Message(message);
+        payload.destinationName = topic;
+        payload.qos = qos;
+        this.client.send(payload);
+    }
+
+    disconnect() {
+        this.client.disconnect();
+    }
+
+    isConnected() {
+        return this.client.isConnected();
     }
 }
 
 // ========================================
-// MQTT & QOS HANDLERS
+// CHART MANAGER
 // ========================================
+class ChartManager {
+    constructor() {
+        this.charts = {};
+        this.dataHistory = {
+            delay: [], throughput: [], jitter: [], packetLoss: []
+        };
+        this.initCharts();
+    }
 
+    initCharts() {
+        const charts = ['chartDelay', 'chartThroughput', 'chartJitter', 'chartPacketLoss'];
+        charts.forEach(id => {
+            const ctx = document.getElementById(id)?.getContext('2d');
+            if (ctx) {
+                this.charts[id] = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: [],
+                        datasets: [{
+                            label: id.replace('chart', ''),
+                            data: [],
+                            borderColor: '#4CAF50',
+                            backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: { y: { beginAtZero: true } },
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        });
+    }
+
+    updateChart(delay, throughput, msgSize, jitter, packetLoss) {
+        const time = new Date().toLocaleTimeString();
+        
+        // Keep max 50 points
+        if (this.dataHistory.delay.length >= 50) {
+            this.dataHistory.delay.shift();
+            this.dataHistory.throughput.shift();
+            this.dataHistory.jitter.shift();
+            this.dataHistory.packetLoss.shift();
+        }
+
+        this.dataHistory.delay.push(delay);
+        this.dataHistory.throughput.push(throughput);
+        this.dataHistory.jitter.push(jitter);
+        this.dataHistory.packetLoss.push(packetLoss);
+
+        // Update all charts
+        Object.keys(this.charts).forEach(key => {
+            const dataKey = key.replace('chart', '').toLowerCase();
+            this.charts[key].data.labels = this.dataHistory.delay.map((_, i) => 
+                new Date(Date.now() - (this.dataHistory.delay.length - i) * 2000).toLocaleTimeString());
+            this.charts[key].data.datasets[0].data = this.dataHistory[dataKey];
+            this.charts[key].update('none');
+        });
+    }
+}
+
+// ========================================
+// DEVICE MANAGER
+// ========================================
+class DeviceManager {
+    switchDevice(device) {
+        currentDevice = device;
+        document.querySelectorAll('.device-card').forEach(card => 
+            card.classList.toggle('active', card.dataset.device === device));
+        
+        // Update stats display
+        updateStatisticsDisplay(device);
+    }
+}
+
+// ========================================
+// INITIALIZATION
+// ========================================
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 Smart Door Dashboard Initialized');
+    
+    // Check login
+    const userName = sessionStorage.getItem('userName');
+    if (!userName) {
+        window.location.href = 'login.html';
+        return;
+    }
+    document.getElementById('userName').textContent = userName;
+    
+    // Init managers
+    deviceManager = new DeviceManager();
+    chartManager = new ChartManager();
+    
+    // Start MQTT + load initial stats
+    initMQTT();
+    setupEventListeners();
+    deviceManager.switchDevice('esp32cam');
+    setupHistoryModal();
+    updateTimestamp();
+    setInterval(updateTimestamp, 1000);
+});
+
+// ========================================
+// MQTT SETUP
+// ========================================
 function initMQTT() {
     mqttClient = new MQTTClient(MQTT_CONFIG.broker, MQTT_CONFIG.port);
-    mqttClient.on('connect', onMqttConnect);
-    mqttClient.on('connectionLost', onMqttConnectionLost);
-    mqttClient.on('messageArrived', onMqttMessageArrived);
+    
+    mqttClient.on('connect', function() {
+        updateMQTTStatus(true);
+        mqttClient.subscribe(MQTT_CONFIG.topics.auth, 1);
+        mqttClient.subscribe(MQTT_CONFIG.topics.param, 1);
+        showToast('✅ MQTT Connected to HiveMQ Cloud', 'success');
+    });
+    
+    mqttClient.on('connectionLost', function() {
+        updateMQTTStatus(false);
+        showToast('❌ MQTT Disconnected', 'error');
+    });
+    
+    mqttClient.on('messageArrived', function(message) {
+        handleMQTTMessage(message);
+    });
+    
     mqttClient.connect(MQTT_CONFIG.username, MQTT_CONFIG.password, true);
 }
 
-function onMqttConnect() {
-    updateMQTTStatus(true);
-    mqttClient.subscribe(MQTT_CONFIG.topics.auth, 1);
-    mqttClient.subscribe(MQTT_CONFIG.topics.param, 1);
-    showToast('✅ Connected to HiveMQ Cloud', 'success');
-}
-
-function onMqttConnectionLost(response) {
-    updateMQTTStatus(false);
-    showToast('❌ MQTT Connection Lost', 'error');
-}
-
-function onMqttMessageArrived(message) {
-    const topic = message.destinationName;
-    const payload = message.payloadString;
-    const arrivalTime = Date.now();
-    const size = payload.length;
-
-    let sourceDev = getSourceDevice(topic);
-    if (!sourceDev) return; 
-
-    try {
-        const data = JSON.parse(payload);
-        const sentTime = data.sentTime || arrivalTime;
-        
-        // --- QOS CALCULATION ---
-        let delay = Math.abs(arrivalTime - sentTime); if (delay < 0) delay = 0;
-        let jitter = 0;
-        if (lastDelayPerDevice[sourceDev] !== null) {
-            jitter = Math.abs(delay - lastDelayPerDevice[sourceDev]);
-        }
-        lastDelayPerDevice[sourceDev] = delay;
-        
-        // Perluas data untuk logging
-        data.device = sourceDev;
-        data.delay = Math.round(delay);
-        data.jitter = Math.round(jitter);
-        data.throughput = Math.round(size * 8); // Bps
-        data.messageSize = size;
-        data.packetLoss = data.packetLoss || 0; // Ambil dari backend jika ada
-        data.sequenceNumber = data.sequenceNumber || 0;
-        
-        // --- 1. HANDLE AUTHENTICATION MESSAGE ---
-        if (topic === MQTT_CONFIG.topics.auth) {
-            handleAuthMessage(data); 
-        } 
-        // --- 2. HANDLE PARAMETER/QOS MESSAGE ---
-        else if (topic === MQTT_CONFIG.topics.param) {
-            handleParamMessage(data); 
-        }
-        
-        // --- 3. UI UPDATE & HISTORY ---
-        if (sourceDev === currentDevice) {
-            updateParamDisplay(data); 
-            updateUserInfo(data); 
-            if (chartManager) chartManager.updateChart(arrivalTime, data.delay, data.throughput, data.messageSize, data.jitter, data.packetLoss);
-            if (sourceDev === 'esp32cam') refreshCamImage(); 
-        }
-        
-        // --- 4. LOG & SAVE TO DB ---
-        let displayData = (sourceDev === 'esp32cam') ? (data.similarity ? data.similarity.toFixed(2) : '0.00') : (data.uid || 'Tap');
-        addLog(data.sequenceNumber, sentTime, sourceDev, data.userId || data.uid, displayData, data.delay);
-        saveLogToDatabase(data, sourceDev, topic); 
-
-    } catch (error) {
-        console.error('❌ Error processing MQTT payload:', error);
+function updateMQTTStatus(connected) {
+    const statusEl = document.getElementById('mqttStatus');
+    const dotEl = statusEl?.querySelector('.status-dot');
+    const textEl = statusEl?.querySelector('.status-text');
+    
+    if (connected) {
+        dotEl?.classList.add('connected');
+        dotEl?.classList.remove('disconnected');
+        textEl.textContent = 'Connected';
+    } else {
+        dotEl?.classList.add('disconnected');
+        dotEl?.classList.remove('connected');
+        textEl.textContent = 'Disconnected';
     }
 }
 
+// ========================================
+// MQTT MESSAGE HANDLER
+// ========================================
+function handleMQTTMessage(message) {
+    const topic = message.destinationName;
+    const payload = message.payloadString;
+    
+    try {
+        const data = JSON.parse(payload);
+        
+        if (topic === MQTT_CONFIG.topics.auth) {
+            handleAuthMessage(data);
+        } else if (topic === MQTT_CONFIG.topics.param) {
+            handleParamMessage(data);
+        }
+    } catch (error) {
+        console.error('❌ MQTT parse error:', error);
+    }
+}
+
+// ========================================
+// AUTH HANDLER
+// ========================================
 async function handleAuthMessage(data) {
-    // Dipanggil saat pesan dari smartdoor/auth masuk
     const device = data.device || 'esp32cam';
     
-    // [Perlu fetch untuk update realtimeStats dari DB]
+    realtimeStats[device].total++;
+    if (data.status === 'success') realtimeStats[device].success++;
+    else realtimeStats[device].failed++;
     
-    // updateLastFacePanel(data); // Update panel wajah
-    // updateStatisticsDisplay(device); // Update kartu statistik
+    updateDeviceBadgeCount(device, realtimeStats[device].total);
     
-    // Kirim Log ke Backend
-    saveLogToDatabase(data, device, 'auth');
-    addActivityLogItem(data);
+    // Face recognition history
+    if (device === 'esp32cam' && data.image) {
+        faceHistoryLog.unshift({
+            time: new Date().toLocaleString('id-ID'),
+            userName: data.userName || '-',
+            userId: data.userId || '-',
+            image: data.image,
+            status: data.status
+        });
+        if (faceHistoryLog.length > MAX_HISTORY) faceHistoryLog.pop();
+        updateLastFacePanel(data);
+    }
+    
+    // Update display + send to backend
+    if (device === currentDevice) {
+        updateStatisticsDisplay(device);
+        addActivityLogItem(data);
+    }
+    
+    // Save to backend
+    try {
+        await fetch(`${window.BASE_URL}/api/auth/log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        showToast(`✅ ${device.toUpperCase()}: ${data.status}`, data.status === 'success' ? 'success' : 'error');
+    } catch (e) {
+        console.error('Backend save error:', e);
+    }
 }
 
+// ========================================
+// PARAM HANDLER - 100% REAL QOS
+// ========================================
 async function handleParamMessage(data) {
-    // Dipanggil saat pesan dari smartdoor/param masuk
     const device = data.device || 'esp32cam';
+    const browserReceiveTime = Date.now();
+    const espSentTime = data.sentTime || null;
+    const msgSize = parseInt(data.messageSize) || 0;
     
-    // [Perlu fetch untuk update realtimeStats dari DB]
+    // Real QoS calculation
+    const networkDelay = espSentTime ? Math.max(0, browserReceiveTime - espSentTime) : 0;
+    const throughput = networkDelay > 0 ? Math.round((msgSize * 8 * 1000) / networkDelay) : 0;
+    const jitter = lastDelayPerDevice[device] !== null ? Math.abs(networkDelay - lastDelayPerDevice[device]) : 0;
     
-    // Kirim Log ke Backend
-    saveLogToDatabase(data, device, 'param');
-}
-
-// ========================================
-// API BRIDGE & UI HELPER FUNCTIONS
-// ========================================
-
-function saveLogToDatabase(data, device, type) {
-    const API_ENDPOINT = `${window.BASE_URL}/api/${type}/log`; 
+    lastDelayPerDevice[device] = networkDelay;
     
+    // Update data
+    data.delay = Math.round(networkDelay);
+    data.throughput = throughput;
+    data.jitter = Math.round(jitter);
+    data.packetLoss = 0;
+    
+    // Update stats
+    realtimeStats[device].paramCount++;
+    realtimeStats[device].avgDelay = (realtimeStats[device].avgDelay * (realtimeStats[device].paramCount - 1) + networkDelay) / realtimeStats[device].paramCount;
+    realtimeStats[device].avgThroughput = (realtimeStats[device].avgThroughput * (realtimeStats[device].paramCount - 1) + throughput) / realtimeStats[device].paramCount;
+    
+    // Update UI
+    if (device === currentDevice) {
+        updateParamDisplay(data);
+        if (chartManager) {
+            chartManager.updateChart(networkDelay, throughput, msgSize, jitter, 0);
+        }
+        updateStatisticsDisplay(device);
+    }
+    
+    // Send to backend for packet loss calculation
     const logData = {
-        deviceId: device,
-        userId: data.userId || data.uid || 'N/A',
-        status: data.status || (data.userId > 0 ? "GRANTED" : "DENIED"),
-        // Data QoS
-        delay: data.delay || 0,
-        jitter: data.jitter || 0,
-        packetLoss: data.packetLoss || 0,
-        messageSize: data.messageSize || 0,
-        timestamp: new Date(data.sentTime).toISOString(),
-        similarity: data.similarity || 0,
+        device, payload: data.payload || 'MQTT Data', messageSize: msgSize,
+        sentTime: espSentTime, receiveTime: browserReceiveTime,
+        delay: networkDelay, throughput, jitter, sequenceNumber: data.sequenceNumber || 0
     };
     
-    fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(logData)
-    })
-    .then(response => {
-        if (!response.ok) console.error(`Error saving ${type} log to DB: ${response.status}`);
-    })
-    .catch(error => {
-        console.error("Fetch API Error:", error);
+    try {
+        const response = await fetch(`${window.BASE_URL}/api/param/log`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(logData)
+        });
+        const result = await response.json();
+        
+        if (result.success && device === currentDevice) {
+            data.packetLoss = result.data?.packetLoss || 0;
+            realtimeStats[device].avgPacketLoss = (realtimeStats[device].avgPacketLoss * (realtimeStats[device].paramCount - 1) + data.packetLoss) / realtimeStats[device].paramCount;
+            updateParamDisplay(data);
+            if (chartManager) chartManager.updateChart(networkDelay, throughput, msgSize, jitter, data.packetLoss);
+        }
+    } catch (e) {
+        console.error('Backend param error:', e);
+    }
+}
+
+// ========================================
+// UI UPDATE FUNCTIONS
+// ========================================
+function updateStatisticsDisplay(device) {
+    const stats = realtimeStats[device];
+    const elements = {
+        statTotal: stats.total,
+        statSuccess: stats.success,
+        statFailed: stats.failed,
+        statDelay: stats.avgDelay?.toFixed(1) + ' ms',
+        statThroughput: stats.avgThroughput?.toFixed(0),
+        statMsgSize: (stats.avgThroughput * (stats.avgDelay / 8000))?.toFixed(0) || 0 + ' B'
+    };
+    
+    Object.entries(elements).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = value;
+            el.style.transform = 'scale(1.1)';
+            setTimeout(() => el.style.transform = 'scale(1)', 200);
+        }
     });
 }
 
-
-function updateMQTTStatus(connected) {
-    const statusEl = document.getElementById('mqttStatus');
-    if (!statusEl) return;
-    const dotEl = statusEl.querySelector('.status-dot');
-    const textEl = statusEl.querySelector('.status-text');
-    if (connected) {
-        dotEl.classList.remove('disconnected');
-        dotEl.classList.add('connected');
-        textEl.textContent = 'Connected to HiveMQ Cloud';
-    } else {
-        dotEl.classList.remove('connected');
-        dotEl.classList.add('disconnected');
-        textEl.textContent = 'Disconnected from MQTT Broker';
+function updateDeviceBadgeCount(device, count) {
+    const badgeId = `badge${device.charAt(0).toUpperCase() + device.slice(1)}`;
+    const badge = document.getElementById(badgeId);
+    if (badge) {
+        badge.textContent = count;
+        badge.style.transform = 'scale(1.3)';
+        setTimeout(() => badge.style.transform = 'scale(1)', 200);
     }
-}
-
-function getSourceDevice(topic) {
-    if (topic.includes('cam')) return 'esp32cam';
-    if (topic.includes('rfid')) return 'rfid';
-    if (topic.includes('finger')) return 'fingerprint';
-    return null;
-}
-
-function refreshCamImage() {
-    const url = `http://${ESP32_IP}/capture?t=${new Date().getTime()}`;
-    const imgEl = document.getElementById('cam-feed');
-    const placeholder = document.getElementById('noFacePlaceholder');
-    if (imgEl) {
-        imgEl.src = url;
-        imgEl.style.display = 'block';
-        if (placeholder) placeholder.style.display = 'none';
-    }
-}
-
-function addLog(seq, time, dev, id, score, d) {
-    const table = document.getElementById("log-table-body");
-    if (!table) return;
-    let row = table.insertRow(0);
-    let tStr = new Date(time).toLocaleTimeString();
-    
-    let badgeColor = "bg-secondary"; let devIcon = "fa-microchip";
-    if(dev === 'esp32cam') { badgeColor = "bg-primary"; devIcon = "fa-camera"; }
-    else if(dev === 'rfid') { badgeColor = "bg-warning text-dark"; devIcon = "fa-id-card"; }
-    else if(dev === 'fingerprint') { badgeColor = "bg-success"; devIcon = "fa-fingerprint"; }
-
-    row.innerHTML = `
-        <td><small class="text-muted">${tStr}</small></td>
-        <td><span class="badge ${badgeColor}"><i class="fas ${devIcon} me-1"></i>${dev.toUpperCase()}</span></td>
-        <td class="fw-bold">${id}</td>
-        <td>${score ? score : '-'}</td>
-        <td>${d} ms</td>
-        <td><span class="badge bg-light text-dark border">Success</span></td>
-    `;
-    if(table.rows.length > 15) table.deleteRow(15);
-}
-
-// ========================================
-// FUNGSI LAINNYA (Perlu ada definisi penuh di file ini)
-// ========================================
-function setupEventListeners() {
-    // ... (Logika event listener dari kode Anda) ...
-}
-
-function updateUserInfo(data) {
-    // ... (Logika update Last Authenticated panel) ...
 }
 
 function updateParamDisplay(data) {
-    // ... (Logika update kartu QoS) ...
-}
-
-function updateStatisticsDisplay(device) {
-    // ... (Logika update kartu Statistics Overview) ...
-}
-
-function updateDeviceBadgeCount(device, count) {
-    // ... (Logika update badge di kartu device) ...
+    const params = {
+        paramPayload: data.payload?.substring(0, 50) + '...',
+        paramTopic: data.topic || '-',
+        paramDelay: data.delay + ' ms',
+        paramThroughput: data.throughput?.toLocaleString() + ' bps',
+        paramSize: data.messageSize + ' B',
+        paramQos: data.qos || 1,
+        paramJitter: data.jitter + ' ms',
+        paramPacketLoss: (data.packetLoss || 0) + ' %'
+    };
+    
+    Object.entries(params).forEach(([id, value]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    });
 }
 
 function addActivityLogItem(data) {
-    // ... (Logika update Activity Log) ...
+    const container = document.getElementById('activityLog');
+    const noActivity = container?.querySelector('.no-activity');
+    if (noActivity) noActivity.remove();
+    
+    const time = new Date().toLocaleTimeString('id-ID');
+    const statusClass = data.status === 'success' ? 'success' : 'failed';
+    
+    const item = document.createElement('div');
+    item.className = `activity-item ${statusClass}`;
+    item.innerHTML = `
+        <div class="activity-header">
+            <span class="activity-title">${data.status === 'success' ? '✅' : '❌'} ${data.device?.toUpperCase()}</span>
+            <span class="activity-time">${time}</span>
+        </div>
+        <div class="activity-details">${data.userName || data.userId || 'Unknown'}</div>
+    `;
+    container.insertBefore(item, container.firstChild);
+    
+    // Keep max 10 items
+    if (container.children.length > 10) {
+        container.removeChild(container.lastChild);
+    }
 }
 
+function updateLastFacePanel(data) {
+    const faceImg = document.getElementById('lastFaceImage');
+    const faceInfo = document.getElementById('faceInfo');
+    const placeholder = document.getElementById('noFacePlaceholder');
+    
+    if (data.image && data.status) {
+        faceImg.src = 'data:image/jpeg;base64,' + data.image;
+        document.getElementById('lastFaceName').textContent = data.userName || '-';
+        document.getElementById('lastFaceId').textContent = data.userId || '-';
+        document.getElementById('lastFaceStatus').textContent = data.status;
+        document.getElementById('lastFaceTime').textContent = new Date().toLocaleString('id-ID');
+        
+        faceImg.style.display = 'block';
+        faceInfo.style.display = 'block';
+        placeholder.style.display = 'none';
+    }
+}
+
+function renderFaceRecognitionHistory() {
+    const historyDiv = document.getElementById('faceRecognitionHistory');
+    if (faceHistoryLog.length === 0) {
+        historyDiv.innerHTML = '<div class="no-activity">No face history</div>';
+        return;
+    }
+    
+    historyDiv.innerHTML = faceHistoryLog.map(log => `
+        <div class="face-history-item">
+            <img src="data:image/jpeg;base64,${log.image}" alt="face">
+            <div class="face-history-meta">
+                <div class="face-history-name">${log.userName} <span>(${log.userId})</span></div>
+                <div class="face-history-time">${log.time}</div>
+                <div class="face-history-status ${log.status}">${log.status}</div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ========================================
+// EVENT LISTENERS
+// ========================================
+function setupEventListeners() {
+    // Device switching
+    document.querySelectorAll('.device-card').forEach(card => {
+        card.addEventListener('click', () => {
+            deviceManager.switchDevice(card.dataset.device);
+        });
+    });
+    
+    // Control buttons
+    document.getElementById('btnBukaPintu')?.addEventListener('click', () => handleDoorControl('open'));
+    document.getElementById('btnKunciPintu')?.addEventListener('click', () => handleDoorControl('lock'));
+    
+    // QoS device selector
+    document.getElementById('device-select-qos')?.addEventListener('change', (e) => {
+        deviceManager.switchDevice(e.target.value);
+    });
+}
+
+function setupHistoryModal() {
+    const btnOpen = document.getElementById('btnShowHistory');
+    const modal = document.getElementById('faceHistoryModal');
+    const btnClose = document.getElementById('closeHistoryModal');
+    
+    btnOpen?.addEventListener('click', () => {
+        renderFaceRecognitionHistory();
+        modal.classList.add('show');
+    });
+    
+    btnClose?.addEventListener('click', () => modal.classList.remove('show'));
+    
+    window.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('show');
+    });
+}
+
+// ========================================
+// CONTROL FUNCTIONS
+// ========================================
 function handleDoorControl(action) {
-    // ... (Logika kirim perintah MQTT) ...
+    if (!mqttClient?.isConnected()) {
+        showToast('❌ MQTT not connected', 'error');
+        return;
+    }
+    
+    mqttClient.publish(MQTT_CONFIG.topics.control, 
+        JSON.stringify({ device: currentDevice, action }), 1);
+    showToast(`🚪 Door ${action.toUpperCase()} command sent`, 'info');
 }
 
-function handleAddUser() {
-    // ... (Logika buka modal tambah user) ...
+function updateTimestamp() {
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString('id-ID');
 }
 
-function handleExportLogs() {
-    // ... (Logika export CSV) ...
+// ========================================
+// UTILITY FUNCTIONS
+// ========================================
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('notificationToast');
+    const toastMsg = document.getElementById('toastMessage');
+    
+    toastMsg.textContent = message;
+    toast.className = `toast show ${type}`;
+    setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
-function handleClearLogs(type) {
-    // ... (Logika clear log) ...
-}
-
-function handleClearAllLogs() {
-    // ... (Logika clear semua log) ...
-}
-
-function handleDownloadReport() {
-    // ... (Logika download report) ...
-}
-
-function handleLogout() {
-    // ... (Logika logout) ...
-}
-
-function showToast(message, type) {
-    // ... (Logika notifikasi toast) ...
+// ========================================
+// Paho MQTT Library (CDN fallback)
+// ========================================
+if (typeof Paho === 'undefined') {
+    const script = document.createElement('script');
+    script.src = 'https://unpkg.com/paho-mqtt@1.0.1/paho-mqtt.min.js';
+    script.onload = initMQTT;
+    document.head.appendChild(script);
 }

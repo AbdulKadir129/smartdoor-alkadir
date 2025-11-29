@@ -1,6 +1,6 @@
 // ========================================
-// DASHBOARD.JS - FINAL FIXED VERSION
-// Fitur: Persistent Data, Delete API, Control Panel Logic
+// DASHBOARD.JS - FINAL COMPLETE VERSION
+// Fitur: MQTT, Database, Chart, Control, Enroll, Delete
 // ========================================
 
 const ESP32_IP = "192.168.18.185"; 
@@ -115,17 +115,21 @@ function loadDataFromLocal() {
     updateCharts(historyData[activeDevice]);
 }
 
-// CONTROL PANEL LOGIC (Kirim Perintah)
+// ========================================
+// FUNGSI PENTING: KONTROL & ENROLL
+// ========================================
+
+// 1. KIRIM PERINTAH BUKA/TUTUP PINTU
 function kirimPerintah(cmd) {
     if (!mqtt.isConnected) { alert("MQTT Disconnected"); return; }
     
-    // Kirim JSON command
+    // Kirim JSON command (Agar ESP32-CAM Paham)
     const payload = JSON.stringify({ cmd: cmd });
     mqtt.publish(TOPIC_CONTROL, payload);
     alert("Perintah Terkirim: " + cmd.toUpperCase());
 }
 
-// FUNGSI ENROLL (Tambah User)
+// 2. FUNGSI TAMBAH USER (ENROLL)
 function submitEnroll() {
     const device = document.getElementById('enrollDevice').value;
     const id = document.getElementById('enrollID').value;
@@ -137,7 +141,6 @@ function submitEnroll() {
 
     if (!mqtt.isConnected) { alert("MQTT Disconnected"); return; }
 
-    // Format JSON untuk Enroll
     const payload = JSON.stringify({
         cmd: "enroll",
         type: device,
@@ -147,10 +150,22 @@ function submitEnroll() {
     mqtt.publish(TOPIC_CONTROL, payload);
     alert(`Perintah REKAM dikirim ke ${device.toUpperCase()} untuk ID: ${id}`);
     
-    // Tutup Modal
+    // Tutup Modal Bootstrap (Jika ada)
     const modalEl = document.getElementById('enrollModal');
-    const modal = bootstrap.Modal.getInstance(modalEl);
-    modal.hide();
+    if(modalEl) {
+        // Cek apakah bootstrap sudah di-load
+        if(typeof bootstrap !== 'undefined') {
+            const modal = bootstrap.Modal.getInstance(modalEl);
+            if(modal) modal.hide();
+        } else {
+            // Fallback manual hide (jQuery style)
+            modalEl.classList.remove('show');
+            modalEl.style.display = 'none';
+            document.body.classList.remove('modal-open');
+            const backdrop = document.querySelector('.modal-backdrop');
+            if(backdrop) backdrop.remove();
+        }
+    }
 }
 
 // DELETE DATABASE LOGIC

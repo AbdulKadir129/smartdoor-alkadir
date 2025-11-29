@@ -1,6 +1,6 @@
 // ========================================
-// DASHBOARD.JS - SMART QOS CALCULATION
-// Fitur: Menghitung Delay & Jitter otomatis dari Browser
+// DASHBOARD.JS - FINAL FIXED (ALL DEVICES)
+// Fitur: Support 'fingerprint' & 'esp32cam' naming
 // ========================================
 
 // 1. KONFIGURASI
@@ -12,13 +12,13 @@ const MQTT_ID = "admin_web_" + Math.random().toString(16).substr(2, 8);
 const MQTT_USER = "Alkadir";
 const MQTT_PASS = "Alkadir123";
 
-// Topik sesuai ESP32
+// Topik
 const TOPIC_AUTH = "smartdoor/auth";   
 const TOPIC_PARAM = "smartdoor/param"; 
 const TOPIC_CONTROL = "smartdoor/control";
 
 // Variabel Data
-let activeDevice = 'rfid'; 
+let activeDevice = 'finger'; // Default ke Finger biar langsung kelihatan
 const historyData = {
     cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
     rfid: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
@@ -26,7 +26,7 @@ const historyData = {
 };
 
 let charts = null;
-let prevDelay = 0; // Untuk menghitung Jitter
+let prevDelay = 0; 
 
 // 2. INITIALIZATION
 window.onload = function() {
@@ -36,10 +36,10 @@ window.onload = function() {
     
     initCharts(); 
     connectMQTT(); 
-    switchDevice('rfid'); // Default view
+    switchDevice('finger'); // Set awal ke Fingerprint
 };
 
-// 3. MQTT CONNECTION & LOGIC
+// 3. MQTT LOGIC
 const mqtt = new MQTTClient(MQTT_BROKER, MQTT_PORT, MQTT_ID);
 
 function connectMQTT() {
@@ -57,54 +57,54 @@ mqtt.on('connect', () => {
 mqtt.on('messageArrived', (msg) => {
     const topic = msg.destinationName;
     const payload = msg.payloadString;
-    const arrivalTime = Date.now(); // JAM LAPTOP (Waktu Terima)
+    const arrivalTime = Date.now(); 
 
     try {
         const data = JSON.parse(payload);
-        // Normalisasi nama device
-        let dev = (data.device || 'rfid').toLowerCase();
-        if (dev.includes('cam')) dev = 'cam';
+        
+        // --- BAGIAN INI YANG DIPERBAIKI ---
+        // Menyamakan nama yang dikirim ESP32 dengan ID di HTML
+        let devRaw = (data.device || 'rfid').toLowerCase();
+        let dev = 'rfid'; // Default
 
-        // --- SKENARIO 1: DATA LOG (TABEL) ---
+        if (devRaw.includes('cam')) {
+            dev = 'cam';
+        } else if (devRaw.includes('finger')) { 
+            // Menangkap 'finger' ATAU 'fingerprint'
+            dev = 'finger'; 
+        } else {
+            dev = 'rfid';
+        }
+        // ----------------------------------
+
+        // SKENARIO 1: DATA LOG (TABEL)
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
-            
-            // Hitung delay real-time untuk tabel log
             let sentTime = data.sentTime || arrivalTime;
-            let realDelay = arrivalTime - sentTime; // RUMUS DELAY
+            let realDelay = arrivalTime - sentTime; 
             if (realDelay < 0) realDelay = 0; 
-
+            
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
             
             addLog(arrivalTime, dev, uid, info, realDelay, data.status);
         }
 
-        // --- SKENARIO 2: DATA GRAFIK (QoS CHART) ---
+        // SKENARIO 2: DATA GRAFIK (CHART)
         else if (topic === TOPIC_PARAM) {
-            // === SMART QOS CALCULATION ===
-            
-            // 1. Hitung Delay (Latency)
             let sentTime = data.sentTime || arrivalTime;
             let delay = arrivalTime - sentTime; 
-            // Koreksi jika jam ESP32 lebih cepat dari laptop (Negative Delay)
             if (delay < 0) delay = Math.abs(delay) % 10; 
 
-            // 2. Hitung Jitter
             let jitter = Math.abs(delay - prevDelay);
             prevDelay = delay;
 
-            // 3. Hitung Throughput (bits per second)
             let size = data.messageSize || payload.length;
             let throughput = size * 8; 
-
-            // 4. Packet Loss (Simulasi, karena TCP menjamin 0% loss)
             let loss = 0; 
 
-            // Simpan ke memory
             updateHistory(dev, delay, jitter, throughput, loss, size);
 
-            // Update Grafik jika device sedang dilihat
             if (dev === activeDevice) {
                 updateDashboardCards(delay, jitter, throughput, loss, size);
                 updateCharts(historyData[dev]);
@@ -182,8 +182,12 @@ function switchDevice(dev) {
 }
 
 function updateUserInfo(data) {
-    document.getElementById('user-id').innerText = data.userId || "-";
-    document.getElementById('user-name').innerText = data.userName || "User " + (data.userId || "?");
+    let uid = data.userId || data.user_id || "-";
+    // Jika uid adalah "unknown" (string), ubah jadi text biasa
+    if (uid.toString().toLowerCase() === "unknown") uid = "Unknown";
+    
+    document.getElementById('user-id').innerText = uid;
+    document.getElementById('user-name').innerText = data.userName || "User " + uid;
     
     const statusEl = document.getElementById('auth-status');
     const iconEl = document.getElementById('user-icon');

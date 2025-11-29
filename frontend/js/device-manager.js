@@ -1,8 +1,7 @@
 // ========================================
-// DEVICE MANAGER - IMPROVED VERSION
-// Mengelola device switching dan statistik
-// UPDATED: Menambahkan Jitter & Packet Loss display
-// dan proteksi jika elemen DOM tidak ada
+// DEVICE MANAGER - FIXED VERSION
+// Perbaikan: Target ID disesuaikan dengan HTML (log-table-body)
+// dan format output diubah menjadi Table Row (<tr>)
 // ========================================
 
 class DeviceManager {
@@ -50,13 +49,18 @@ class DeviceManager {
             const paramData = await paramRes.json();
 
             if (paramData.success) {
-                this.updateElement('statDelay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2));
-                this.updateElement('statThroughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2));
-                this.updateElement('statMsgSize', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2));
+                this.updateElement('statDelay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2) + ' ms');
+                this.updateElement('statThroughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2) + ' bps');
+                this.updateElement('statMsgSize', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2) + ' B');
+                this.updateElement('statJitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2) + ' ms');
+                this.updateElement('statPacketLoss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2) + ' %');
 
-                // ✅ TAMBAHAN: Jitter & Packet Loss
-                this.updateElement('statJitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2));
-                this.updateElement('statPacketLoss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2));
+                // Update juga nilai di kartu atas (Network QoS Summary) jika ID-nya ada
+                this.updateElement('val-delay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2) + ' ms');
+                this.updateElement('val-jitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2) + ' ms');
+                this.updateElement('val-throughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2) + ' bps');
+                this.updateElement('val-loss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2) + ' %');
+                this.updateElement('val-size', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2) + ' B');
 
                 console.log('✅ Stats loaded successfully');
             }
@@ -71,7 +75,6 @@ class DeviceManager {
         const element = document.getElementById(id);
         if (element) {
             element.textContent = value;
-
             // Animasi kecil
             element.style.transform = 'scale(1.1)';
             setTimeout(() => {
@@ -102,42 +105,43 @@ class DeviceManager {
         }
     }
 
-    // Display activity log
+    // Display activity log (FIXED: Uses Table Rows now)
     displayActivityLog(logs) {
-        const container = document.getElementById('activityLog');
+        // PERBAIKAN 1: Menggunakan ID yang benar sesuai index.html
+        const container = document.getElementById('log-table-body');
 
-        // Kalau halaman tidak punya container log, jangan error
         if (!container) {
-            console.warn('⚠️ activityLog container not found, skip displayActivityLog');
+            console.warn('⚠️ log-table-body container not found, check index.html IDs');
             return;
         }
 
         if (!logs || logs.length === 0) {
-            container.innerHTML = '<div class="no-activity">No activity yet...</div>';
+            // Tampilkan pesan kosong dalam format baris tabel
+            container.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Belum ada data aktivitas.</td></tr>';
             return;
         }
 
+        // PERBAIKAN 2: Mengembalikan format <tr> (Table Row) bukan <div>
         container.innerHTML = logs.slice(0, 15).map(log => {
             const time = new Date(log.timestamp).toLocaleString('id-ID', {
                 dateStyle: 'short',
                 timeStyle: 'medium'
             });
 
-            const statusClass = log.status === 'success' ? 'success' : 'failed';
-            const icon = log.status === 'success' ? '✅' : '❌';
-            const userName = log.userName || log.userId || 'Unknown';
-            const message = log.message || log.status;
+            // Tentukan warna badge status
+            const isSuccess = log.status === 'success' || log.status === 'granted';
+            const badgeClass = isSuccess ? 'bg-success' : 'bg-danger';
+            const statusText = log.status ? log.status.toUpperCase() : 'UNKNOWN';
 
             return `
-                <div class="activity-item ${statusClass}">
-                    <div class="activity-header">
-                        <span class="activity-title">${icon} ${log.method || log.device}</span>
-                        <span class="activity-time">${time}</span>
-                    </div>
-                    <div class="activity-details">
-                        <strong>${userName}</strong> - ${message}
-                    </div>
-                </div>
+                <tr>
+                    <td>${time}</td>
+                    <td><span class="badge bg-secondary">${log.device || '-'}</span></td>
+                    <td class="fw-bold">${log.userId || log.userName || '-'}</td>
+                    <td>${log.data || log.score || '-'}</td>
+                    <td>${log.delay ? log.delay + ' ms' : '-'}</td>
+                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
+                </tr>
             `;
         }).join('');
     }

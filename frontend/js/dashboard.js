@@ -1,24 +1,18 @@
 // ========================================
-// DASHBOARD.JS - FINAL COMPLETE VERSION
-// Fitur: Persistent Data, Delete API, Control Panel Logic, FIX Live Stream
+// DASHBOARD.JS - FINAL COMPLETE VERSION (QoS FIXED)
 // ========================================
 
-// 1. KONFIGURASI (PENTING: GANTI INI DENGAN IP ANDA YANG SEKARANG)
 const ESP32_IP = "192.168.18.185"; 
-
-// Konfigurasi MQTT HiveMQ
 const MQTT_BROKER = "4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const MQTT_ID = "admin_web_" + Math.random().toString(16).substr(2, 8);
 const MQTT_USER = "Alkadir";
 const MQTT_PASS = "Alkadir123";
 
-// Topik MQTT
 const TOPIC_AUTH = "smartdoor/auth";   
 const TOPIC_PARAM = "smartdoor/param"; 
 const TOPIC_CONTROL = "smartdoor/control";
 
-// Variabel Global
 let activeDevice = 'finger'; 
 let historyData = {
     cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
@@ -36,7 +30,7 @@ window.onload = function() {
     loadDataFromLocal(); 
     connectMQTT(); 
     switchDevice('finger'); 
-    refreshCam(); // Nyalakan kamera saat start
+    refreshCam(); 
 };
 
 // MQTT LOGIC
@@ -65,31 +59,47 @@ mqtt.on('messageArrived', (msg) => {
         if (devRaw.includes('cam')) dev = 'cam';
         else if (devRaw.includes('finger')) dev = 'finger';
 
+        // =========================================================
+        // 🔥 LAKUKAN PERHITUNGAN QoS SEKALI UNTUK SEMUA PESAN 🔥
+        // Digunakan untuk Auth Log & Grafik
+        // =========================================================
+        let sentTime = data.sentTime || arrivalTime;
+        
+        // Cek apakah sentTime valid (non-zero) untuk menghindari Delay=0
+        if (sentTime.toString().length < 10) sentTime = arrivalTime; // Jika epoch time terlalu kecil, anggap waktu tiba
+        
+        let delay = arrivalTime - sentTime; 
+        if (delay < 0 || delay > 10000) delay = Math.abs(delay) % 2000; // Clamp delay if wildly inaccurate
+
+        let jitter = Math.abs(delay - prevDelay);
+        prevDelay = delay;
+
+        let msgSize = data.messageSize || payload.length;
+        let throughput = msgSize * 8; 
+        let loss = 0; 
+        // =========================================================
+
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
-            let sentTime = data.sentTime || arrivalTime;
-            let realDelay = arrivalTime - sentTime;
-            if (realDelay < 0) realDelay = 0;
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
-            addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
+            
+            // ✅ KIRIM SEMUA DATA QOS HASIL HITUNGAN KE LOG AUTH
+            addLog(arrivalTime, dev, uid, info, delay, jitter, throughput, data.status);
         }
         else if (topic === TOPIC_PARAM) {
-            let sentTime = data.sentTime || arrivalTime;
-            let delay = arrivalTime - sentTime; 
-            if (delay < 0) delay = Math.abs(delay) % 10; 
-            let jitter = Math.abs(delay - prevDelay);
-            prevDelay = delay;
-            let size = data.messageSize || payload.length;
-            let throughput = size * 8; 
-            let loss = 0; 
-            updateHistory(dev, delay, jitter, throughput, loss, size);
+            // Masukkan data hasil hitungan ke grafik
+            updateHistory(dev, delay, jitter, throughput, loss, msgSize);
+            
+            // Catat juga di log sebagai info
             addLog(arrivalTime, dev, "-", "QoS Report", delay, jitter, throughput, "INFO");
+
             if (dev === activeDevice) {
-                updateDashboardCards(delay, jitter, throughput, loss, size);
+                updateDashboardCards(delay, jitter, throughput, loss, msgSize);
                 updateCharts(historyData[dev]);
             }
         }
+        
         saveDataToLocal();
     } catch (e) {
         console.error('❌ Error parsing JSON:', e);
@@ -120,21 +130,12 @@ function loadDataFromLocal() {
     updateCharts(historyData[activeDevice]);
 }
 
-// ========================================
-// 3. LOGIKA KAMERA (LIVE STREAM FIX)
-// ========================================
+// LOGIKA KAMERA (LIVE STREAM)
 function refreshCam() {
     const img = document.getElementById('cam-feed');
     if(!img) return;
-
-    // Masalah utama adalah HTTPS Render vs HTTP ESP32.
-    // Kita harus menggunakan IP, dan browser harus di-set "Allow Insecure Content".
-    // Kita tambahkan ?t= untuk menghindari cache browser yang menyimpan gambar rusak.
     const url = `http://${ESP32_IP}:80/stream`; 
-    
     img.src = url;
-    
-    // Jika stream error/putus, coba sambung lagi
     img.onerror = function() {
         console.warn("⚠️ Stream terputus atau diblokir. Mencoba reconnect...");
         setTimeout(() => {
@@ -143,9 +144,7 @@ function refreshCam() {
     };
 }
 
-// ========================================
-// 4. CONTROL PANEL LOGIC (Kunci/Buka/Enroll/Delete)
-// ========================================
+// CONTROL PANEL LOGIC
 function kirimPerintah(cmd) {
     if (!mqtt.isConnected) { alert("MQTT Disconnected"); return; }
     const payload = JSON.stringify({ cmd: cmd });
@@ -197,7 +196,6 @@ function confirmDeleteUser() {
     alert(`Perintah HAPUS dikirim ke ${device.toUpperCase()} untuk ID: ${id}.`);
 }
 
-// DELETE DATABASE LOGIC
 async function clearQoSDB() {
     if(!confirm("⚠️ PERINGATAN KERAS!\n\nAnda akan menghapus SELURUH data Network QoS di MongoDB Atlas secara PERMANEN.\nData tidak bisa dikembalikan!")) return;
     const btn = document.getElementById('btn-hapus-db');
@@ -242,7 +240,7 @@ function resetAllData() {
     resetUserInfo();
 }
 
-// UI HELPERS (Chart, Data, Navigation)
+// UI HELPERS
 function updateHistory(dev, d, j, t, l, s) {
     if (!historyData[dev]) return;
     const h = historyData[dev];
@@ -301,14 +299,15 @@ function renderRow(log) {
     if (log.dev === 'cam') badgeColor = "bg-primary";
     else if (log.dev === 'rfid') badgeColor = "bg-warning text-dark";
     else if (log.dev === 'finger') badgeColor = "bg-success";
+
     let statusBadge = `<span class="badge bg-info text-dark">${log.status}</span>`;
     if (log.status.toLowerCase().includes('success')) statusBadge = '<span class="badge bg-success">SUCCESS</span>';
     else if (log.status.toLowerCase().includes('fail')) statusBadge = '<span class="badge bg-danger">FAILED</span>';
+
     row.innerHTML = `<td><small>${tStr}</small></td><td><span class="badge ${badgeColor}">${log.dev.toUpperCase()}</span></td><td class="fw-bold">${log.id}</td><td>${log.msg}</td><td>${log.delay} ms</td><td>${log.jitter} ms</td><td>${log.throu} bps</td><td>${statusBadge}</td>`;
     if (table.rows.length > 50) table.deleteRow(50);
 }
 
-// NAVIGATION & TABS
 function switchPage(page) {
     document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));

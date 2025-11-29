@@ -2,6 +2,7 @@
 // DEVICE MANAGER - IMPROVED VERSION
 // Mengelola device switching dan statistik
 // UPDATED: Menambahkan Jitter & Packet Loss display
+// dan proteksi jika elemen DOM tidak ada
 // ========================================
 
 class DeviceManager {
@@ -20,7 +21,7 @@ class DeviceManager {
         this.currentDevice = device;
         this.loadDeviceStats(device);
         this.loadDeviceHistory(device);
-        
+
         console.log(`✅ Device switched to: ${device}`);
     }
 
@@ -28,7 +29,12 @@ class DeviceManager {
     async loadDeviceStats(device) {
         try {
             console.log(`📊 Loading stats for ${device}...`);
-            
+
+            if (!window.BASE_URL) {
+                console.warn('⚠️ BASE_URL belum diset, skip loadDeviceStats');
+                return;
+            }
+
             // Load auth stats
             const authRes = await fetch(`${window.BASE_URL}/api/auth/stats/${device}`);
             const authData = await authRes.json();
@@ -47,12 +53,12 @@ class DeviceManager {
                 this.updateElement('statDelay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2));
                 this.updateElement('statThroughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2));
                 this.updateElement('statMsgSize', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2));
-                
-                // ✅ TAMBAHAN BARU: Jitter & Packet Loss
+
+                // ✅ TAMBAHAN: Jitter & Packet Loss
                 this.updateElement('statJitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2));
                 this.updateElement('statPacketLoss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2));
-                
-                console.log(`✅ Stats loaded successfully`);
+
+                console.log('✅ Stats loaded successfully');
             }
 
         } catch (error) {
@@ -65,8 +71,8 @@ class DeviceManager {
         const element = document.getElementById(id);
         if (element) {
             element.textContent = value;
-            
-            // Add animation effect
+
+            // Animasi kecil
             element.style.transform = 'scale(1.1)';
             setTimeout(() => {
                 element.style.transform = 'scale(1)';
@@ -78,6 +84,12 @@ class DeviceManager {
     async loadDeviceHistory(device) {
         try {
             console.log(`📜 Loading history for ${device}...`);
+
+            if (!window.BASE_URL) {
+                console.warn('⚠️ BASE_URL belum diset, skip loadDeviceHistory');
+                return;
+            }
+
             const response = await fetch(`${window.BASE_URL}/api/auth/logs/${device}`);
             const result = await response.json();
 
@@ -93,7 +105,13 @@ class DeviceManager {
     // Display activity log
     displayActivityLog(logs) {
         const container = document.getElementById('activityLog');
-        
+
+        // Kalau halaman tidak punya container log, jangan error
+        if (!container) {
+            console.warn('⚠️ activityLog container not found, skip displayActivityLog');
+            return;
+        }
+
         if (!logs || logs.length === 0) {
             container.innerHTML = '<div class="no-activity">No activity yet...</div>';
             return;
@@ -104,12 +122,12 @@ class DeviceManager {
                 dateStyle: 'short',
                 timeStyle: 'medium'
             });
-            
+
             const statusClass = log.status === 'success' ? 'success' : 'failed';
             const icon = log.status === 'success' ? '✅' : '❌';
             const userName = log.userName || log.userId || 'Unknown';
             const message = log.message || log.status;
-            
+
             return `
                 <div class="activity-item ${statusClass}">
                     <div class="activity-header">

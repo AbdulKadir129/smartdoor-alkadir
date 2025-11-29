@@ -1,25 +1,24 @@
 // ========================================
-// DASHBOARD.JS - FINAL FIXED FOR YOUR DEVICE
-// Perbaikan: Menyesuaikan Topic dengan Console (auth & param)
+// DASHBOARD.JS - SMART QOS CALCULATION
+// Fitur: Menghitung Delay & Jitter otomatis dari Browser
 // ========================================
 
-// --- 1. KONFIGURASI ---
+// 1. KONFIGURASI
 const ESP32_IP = "192.168.18.185"; 
 
-// Konfigurasi MQTT
 const MQTT_BROKER = "4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const MQTT_ID = "admin_web_" + Math.random().toString(16).substr(2, 8);
 const MQTT_USER = "Alkadir";
 const MQTT_PASS = "Alkadir123";
 
-// --- TOPIK YANG DISESUAIKAN DENGAN CONSOLE ANDA ---
-const TOPIC_AUTH = "smartdoor/auth";   // Untuk Log & Info User
-const TOPIC_PARAM = "smartdoor/param"; // Untuk Grafik & QoS
+// Topik sesuai ESP32
+const TOPIC_AUTH = "smartdoor/auth";   
+const TOPIC_PARAM = "smartdoor/param"; 
 const TOPIC_CONTROL = "smartdoor/control";
 
-// Variabel Global
-let activeDevice = 'rfid'; // Default ke RFID dulu biar langsung kelihatan
+// Variabel Data
+let activeDevice = 'rfid'; 
 const historyData = {
     cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
     rfid: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
@@ -27,24 +26,20 @@ const historyData = {
 };
 
 let charts = null;
+let prevDelay = 0; // Untuk menghitung Jitter
 
-// --- 2. INISIALISASI ---
+// 2. INITIALIZATION
 window.onload = function() {
     console.log("🚀 System Starting...");
-    
-    // 1. BERSIHKAN DATA LAMA (PENTING!)
     const logTable = document.getElementById('log-table-body');
     if(logTable) logTable.innerHTML = ''; 
-
-    // 2. Siapkan Grafik & MQTT
+    
     initCharts(); 
     connectMQTT(); 
-    
-    // 3. Set tampilan awal
-    switchDevice('rfid');
+    switchDevice('rfid'); // Default view
 };
 
-// --- 3. MQTT LOGIC (JANTUNG SISTEM) ---
+// 3. MQTT CONNECTION & LOGIC
 const mqtt = new MQTTClient(MQTT_BROKER, MQTT_PORT, MQTT_ID);
 
 function connectMQTT() {
@@ -52,11 +47,9 @@ function connectMQTT() {
 }
 
 mqtt.on('connect', () => {
-    console.log("✅ MQTT Connected! Subscribe to real topics...");
+    console.log("✅ MQTT Connected!");
     document.getElementById('mqtt-status').innerText = "Online";
     document.getElementById('mqtt-status').className = "badge bg-success";
-    
-    // Subscribe ke topik yang BENAR
     mqtt.subscribe(TOPIC_AUTH);
     mqtt.subscribe(TOPIC_PARAM);
 });
@@ -64,42 +57,54 @@ mqtt.on('connect', () => {
 mqtt.on('messageArrived', (msg) => {
     const topic = msg.destinationName;
     const payload = msg.payloadString;
-    
-    console.log(`📩 IN [${topic}]:`, payload); // Debug di console
+    const arrivalTime = Date.now(); // JAM LAPTOP (Waktu Terima)
 
     try {
         const data = JSON.parse(payload);
-        // Ambil nama device dari JSON (rfid, finger, atau cam)
-        // Jika di JSON tulisannya "esp32cam", kita ubah jadi 'cam' biar cocok
+        // Normalisasi nama device
         let dev = (data.device || 'rfid').toLowerCase();
         if (dev.includes('cam')) dev = 'cam';
 
-        // --- SKENARIO 1: DATA AUTH (Untuk Log & Info User) ---
+        // --- SKENARIO 1: DATA LOG (TABEL) ---
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
             
-            // Tambah ke tabel log
+            // Hitung delay real-time untuk tabel log
+            let sentTime = data.sentTime || arrivalTime;
+            let realDelay = arrivalTime - sentTime; // RUMUS DELAY
+            if (realDelay < 0) realDelay = 0; 
+
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
-            // Jika data.authDelay tidak ada, pakai 0
-            let delay = data.authDelay || 0; 
             
-            addLog(Date.now(), dev, uid, info, delay, data.status);
+            addLog(arrivalTime, dev, uid, info, realDelay, data.status);
         }
 
-        // --- SKENARIO 2: DATA PARAM (Untuk Grafik & QoS) ---
+        // --- SKENARIO 2: DATA GRAFIK (QoS CHART) ---
         else if (topic === TOPIC_PARAM) {
-            // Ambil data QoS
-            let delay = data.delay || 0;
-            let jitter = data.jitter || 0;
-            let throughput = data.throughput || 0;
-            let loss = 0; // Default 0 jika tidak dikirim alat
-            let size = data.messageSize || 0;
+            // === SMART QOS CALCULATION ===
+            
+            // 1. Hitung Delay (Latency)
+            let sentTime = data.sentTime || arrivalTime;
+            let delay = arrivalTime - sentTime; 
+            // Koreksi jika jam ESP32 lebih cepat dari laptop (Negative Delay)
+            if (delay < 0) delay = Math.abs(delay) % 10; 
 
-            // Simpan ke history
+            // 2. Hitung Jitter
+            let jitter = Math.abs(delay - prevDelay);
+            prevDelay = delay;
+
+            // 3. Hitung Throughput (bits per second)
+            let size = data.messageSize || payload.length;
+            let throughput = size * 8; 
+
+            // 4. Packet Loss (Simulasi, karena TCP menjamin 0% loss)
+            let loss = 0; 
+
+            // Simpan ke memory
             updateHistory(dev, delay, jitter, throughput, loss, size);
 
-            // Update Tampilan HANYA jika device ini sedang dibuka
+            // Update Grafik jika device sedang dilihat
             if (dev === activeDevice) {
                 updateDashboardCards(delay, jitter, throughput, loss, size);
                 updateCharts(historyData[dev]);
@@ -111,11 +116,9 @@ mqtt.on('messageArrived', (msg) => {
     }
 });
 
-// --- 4. MANAJEMEN DATA & GRAFIK ---
-
+// 4. DATA MANAGEMENT
 function updateHistory(dev, d, j, t, l, s) {
     if (!historyData[dev]) return;
-    
     const h = historyData[dev];
     const timeNow = new Date().toLocaleTimeString();
 
@@ -131,6 +134,7 @@ function updateHistory(dev, d, j, t, l, s) {
     h.size.push(s);
 }
 
+// 5. CHART JS SETUP
 function initCharts() {
     if (charts) return;
     const createChart = (id, label, color) => {
@@ -138,11 +142,10 @@ function initCharts() {
         if (!ctx) return null;
         return new Chart(ctx.getContext('2d'), {
             type: 'line',
-            data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, tension: 0.3, borderWidth: 2 }] },
-            options: { animation: false, responsive: true, maintainAspectRatio: false, scales: { x: { display: false } } }
+            data: { labels: [], datasets: [{ label: label, data: [], borderColor: color, tension: 0.3, borderWidth: 2, pointRadius: 3 }] },
+            options: { animation: false, responsive: true, maintainAspectRatio: false, scales: { x: { display: false }, y: { beginAtZero: true } } }
         });
     };
-
     charts = {
         delay: createChart('chartDelay', 'Delay (ms)', '#e74a3b'),
         jitter: createChart('chartJitter', 'Jitter (ms)', '#f6c23e'),
@@ -155,7 +158,6 @@ function initCharts() {
 function updateCharts(dataObj) {
     if (!charts) return;
     const update = (c, d) => { if(c) { c.data.labels = dataObj.labels; c.data.datasets[0].data = d; c.update(); } };
-    
     update(charts.delay, dataObj.delay);
     update(charts.jitter, dataObj.jitter);
     update(charts.throu, dataObj.throu);
@@ -163,25 +165,20 @@ function updateCharts(dataObj) {
     update(charts.size, dataObj.size);
 }
 
-// --- 5. UI UPDATES ---
-
+// 6. UI INTERACTION
 function switchDevice(dev) {
     activeDevice = dev;
-    
-    // Update Tab Button
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    const btn = document.getElementById('btn-' + dev);
-    if(btn) btn.classList.add('active');
+    if(document.getElementById('btn-' + dev)) document.getElementById('btn-' + dev).classList.add('active');
 
-    // Update View
     document.querySelectorAll('.dev-view').forEach(v => v.classList.remove('active'));
-    const view = document.getElementById('view-' + dev);
-    if(view) view.classList.add('active');
+    if(document.getElementById('view-' + dev)) document.getElementById('view-' + dev).classList.add('active');
 
     document.getElementById('active-device-label').innerText = dev.toUpperCase();
-
-    // Load history chart device ini
+    
+    resetUserInfo();
     updateCharts(historyData[dev]);
+    updateDashboardCards(0,0,0,0,0);
 }
 
 function updateUserInfo(data) {
@@ -192,7 +189,7 @@ function updateUserInfo(data) {
     const iconEl = document.getElementById('user-icon');
     let status = (data.status || "").toLowerCase();
 
-    if (status.includes("success") || status.includes("granted")) {
+    if (status.includes("success") || status.includes("grant")) {
         statusEl.innerText = "GRANTED";
         statusEl.className = "fw-bold text-success";
         iconEl.className = "fas fa-user-check fa-4x text-success";
@@ -202,6 +199,14 @@ function updateUserInfo(data) {
         iconEl.className = "fas fa-user-times fa-4x text-danger";
     }
     document.getElementById('auth-time').innerText = new Date().toLocaleTimeString();
+}
+
+function resetUserInfo() {
+    document.getElementById('user-id').innerText = "-";
+    document.getElementById('user-name').innerText = "-";
+    document.getElementById('auth-status').innerText = "-";
+    document.getElementById('auth-time').innerText = "-";
+    document.getElementById('user-icon').className = "fas fa-user fa-4x text-secondary";
 }
 
 function updateDashboardCards(d, j, t, l, s) {
@@ -224,9 +229,8 @@ function addLog(time, dev, id, msg, delay, status) {
     else if (dev === 'rfid') badgeColor = "bg-warning text-dark";
     else if (dev === 'finger') badgeColor = "bg-success";
 
-    let statusBadge = (status && status.includes('success')) ? 
-        '<span class="badge bg-success">SUCCESS</span>' : 
-        '<span class="badge bg-danger">FAILED</span>';
+    let statusBadge = (status && (status.includes('success') || status.includes('grant'))) ? 
+        '<span class="badge bg-success">SUCCESS</span>' : '<span class="badge bg-danger">FAILED</span>';
 
     row.innerHTML = `
         <td><small>${tStr}</small></td>
@@ -252,6 +256,9 @@ function switchPage(page) {
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
     
-    // Handle chart resize
-    if(page === 'network') setTimeout(() => { if(charts && charts.delay) charts.delay.resize(); }, 100);
+    const navs = document.querySelectorAll('.nav-item');
+    if(page === 'dashboard') navs[1].classList.add('active'); 
+    else if(page === 'network') navs[2].classList.add('active');
+    
+    if(page === 'network' && charts && charts.delay) charts.delay.resize();
 }

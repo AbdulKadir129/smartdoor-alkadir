@@ -10,185 +10,33 @@
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
 
     <style>
-        :root {
-            --primary: #4e73df;
-            --bg-color: #f8f9fc;
-            --sidebar-width: 250px;
-        }
-
-        body { 
-            font-family: 'Nunito', sans-serif; 
-            background-color: var(--bg-color); 
-            overflow-x: hidden; 
-        }
-
-        .sidebar {
-            height: 100vh; 
-            width: var(--sidebar-width);
-            position: fixed; 
-            top: 0; 
-            left: 0;
-            background: linear-gradient(180deg, #4e73df 10%, #224abe 100%);
-            color: white; 
-            padding-top: 20px; 
-            z-index: 1000;
-        }
-        
-        .nav-item {
-            padding: 15px 25px; 
-            cursor: pointer; 
-            transition: 0.3s;
-            color: rgba(255,255,255,0.8); 
-            display: flex; 
-            align-items: center; 
-            text-decoration: none;
-        }
-        
-        .nav-item:hover, .nav-item.active {
-            background: rgba(255,255,255,0.1); 
-            border-left: 5px solid #fff; 
-            color: white;
-        }
-        
-        .nav-item i { 
-            margin-right: 15px; 
-            width: 25px; 
-            text-align: center; 
-        }
-
-        .main-content { 
-            margin-left: var(--sidebar-width); 
-            padding: 30px; 
-        }
-
-        .device-tabs { 
-            display: flex; 
-            gap: 15px; 
-            margin-bottom: 25px; 
-        }
-        
-        .tab-btn {
-            flex: 1; 
-            padding: 15px; 
-            border: none; 
-            border-radius: 10px;
-            background: white; 
-            color: #858796; 
-            font-weight: 700;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.05); 
-            transition: 0.3s;
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            gap: 10px;
-        }
-        
-        .tab-btn:hover { 
-            transform: translateY(-3px); 
-        }
-        
-        .tab-btn.active { 
-            background: #4e73df; 
-            color: white; 
-            box-shadow: 0 5px 15px rgba(78, 115, 223, 0.3); 
-        }
-
-        .card { 
-            border: none; 
-            border-radius: 15px; 
-            box-shadow: 0 5px 15px rgba(0,0,0,0.05); 
-            margin-bottom: 25px; 
-        }
-        
-        .card-header { 
-            background: white; 
-            border-bottom: 1px solid #e3e6f0; 
-            font-weight: 700; 
-            color: #4e73df; 
-        }
-
-        .cam-wrapper {
-            background: #000; 
-            border-radius: 10px; 
-            height: 350px;
-            display: flex; 
-            align-items: center; 
-            justify-content: center; 
-            position: relative;
-        }
-        
-        .cam-wrapper img { 
-            max-width: 100%; 
-            max-height: 100%; 
-            border-radius: 5px; 
-        }
-        
-        .rfid-wrapper, .finger-wrapper {
-            height: 350px; 
-            display: flex; 
-            flex-direction: column;
-            align-items: center; 
-            justify-content: center;
-            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-            border-radius: 10px; 
-            color: #858796;
-        }
-
-        .btn-panel {
-            padding: 25px; 
-            border-radius: 15px; 
-            font-weight: 700; 
-            color: white;
-            text-align: center; 
-            transition: transform 0.2s; 
-            cursor: pointer;
-            margin-bottom: 20px; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        
-        .btn-panel:hover { 
-            transform: translateY(-5px); 
-        }
-        
-        .bg-open { 
-            background: linear-gradient(45deg, #1cc88a, #13855c); 
-        }
-        
-        .bg-lock { 
-            background: linear-gradient(45deg, #e74a3b, #be2617); 
-        }
-        
-        .bg-enroll { 
-            background: linear-gradient(45deg, #f6c23e, #dda20a); 
-        }
-
-        .chart-container {
-            position: relative;
-            height: 300px !important;
-            width: 100%;
-        }
-
-        .page-section { 
-            display: none; 
-            animation: fadeIn 0.4s; 
-        }
-        
-        .page-section.active { 
-            display: block; 
-        }
-        
-        .dev-view { 
-            display: none; 
-        }
-        
-        .dev-view.active { 
-            display: block; 
-        }
-
-        @keyframes fadeIn { 
-            from {opacity:0} 
-            to {opacity:1} 
-        }
+        :root { --primary: #4e73df; --bg-color: #f8f9fc; --sidebar-width: 250px; }
+        body { font-family: 'Nunito', sans-serif; background-color: var(--bg-color); overflow-x: hidden; }
+        .sidebar { height: 100vh; width: var(--sidebar-width); position: fixed; top: 0; left: 0; background: linear-gradient(180deg, #4e73df 10%, #224abe 100%); color: white; padding-top: 20px; z-index: 1000; }
+        .nav-item { padding: 15px 25px; cursor: pointer; transition: 0.3s; color: rgba(255,255,255,0.8); display: flex; align-items: center; text-decoration: none; }
+        .nav-item:hover, .nav-item.active { background: rgba(255,255,255,0.1); border-left: 5px solid #fff; color: white; }
+        .nav-item i { margin-right: 15px; width: 25px; text-align: center; }
+        .main-content { margin-left: var(--sidebar-width); padding: 30px; }
+        .device-tabs { display: flex; gap: 15px; margin-bottom: 25px; }
+        .tab-btn { flex: 1; padding: 15px; border: none; border-radius: 10px; background: white; color: #858796; font-weight: 700; box-shadow: 0 3px 10px rgba(0,0,0,0.05); transition: 0.3s; display: flex; align-items: center; justify-content: center; gap: 10px; }
+        .tab-btn:hover { transform: translateY(-3px); }
+        .tab-btn.active { background: #4e73df; color: white; box-shadow: 0 5px 15px rgba(78, 115, 223, 0.3); }
+        .card { border: none; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); margin-bottom: 25px; }
+        .card-header { background: white; border-bottom: 1px solid #e3e6f0; font-weight: 700; color: #4e73df; }
+        .cam-wrapper { background: #000; border-radius: 10px; height: 350px; display: flex; align-items: center; justify-content: center; position: relative; }
+        .cam-wrapper img { max-width: 100%; max-height: 100%; border-radius: 5px; }
+        .rfid-wrapper, .finger-wrapper { height: 350px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%); border-radius: 10px; color: #858796; }
+        .btn-panel { padding: 25px; border-radius: 15px; font-weight: 700; color: white; text-align: center; transition: transform 0.2s; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .btn-panel:hover { transform: translateY(-5px); }
+        .bg-open { background: linear-gradient(45deg, #1cc88a, #13855c); }
+        .bg-lock { background: linear-gradient(45deg, #e74a3b, #be2617); }
+        .bg-enroll { background: linear-gradient(45deg, #f6c23e, #dda20a); }
+        .chart-container { position: relative; height: 300px !important; width: 100%; }
+        .page-section { display: none; animation: fadeIn 0.4s; }
+        .page-section.active { display: block; }
+        .dev-view { display: none; }
+        .dev-view.active { display: block; }
+        @keyframes fadeIn { from {opacity:0} to {opacity:1} }
     </style>
 </head>
 <body>
@@ -378,7 +226,6 @@
             </div>
         </div>
 
-
         <div id="page-control" class="page-section">
             <div class="row justify-content-center mt-4">
                 <div class="col-md-4">
@@ -424,7 +271,7 @@
                             <th>Time</th>
                             <th>Device</th>
                             <th>User ID</th>
-                            <th>Data/Score</th>
+                            <th>Data/Info</th>
                             <th>QoS Delay</th>
                             <th>Status</th>
                         </tr>
@@ -439,9 +286,7 @@
     <script src="lib/chart.umd.js"></script>
     <script src="lib/mqttws31.min.js"></script>
     <script src="js/mqtt-client.js"></script>
-    <script src="js/chart-manager.js"></script>
-    <script src="js/device-manager.js"></script>
-    <script src="js/main.js"></script>
-    <script src="js/dashboard.js"></script>
+    
+    <script src="js/dashboard.js"></script> 
 </body>
 </html>

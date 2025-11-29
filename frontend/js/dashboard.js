@@ -56,19 +56,22 @@ mqtt.on('connect', () => {
 mqtt.on('messageArrived', (msg) => {
     const topic = msg.destinationName;
     const payload = msg.payloadString;
-    const arrivalTime = Date.now();
+    const arrivalTime = Date.now(); // ms di browser
 
     try {
         const data = JSON.parse(payload);
+
+        // Normalisasi nama device
         let devRaw = (data.device || 'rfid').toLowerCase();
         let dev = 'rfid';
         if (devRaw.includes('cam')) dev = 'cam';
         else if (devRaw.includes('finger')) dev = 'finger';
 
         if (topic === TOPIC_AUTH) {
+            // Update kartu user terakhir
             updateUserInfo(data);
 
-            // Pakai sentTime dari alat, tapi dipaksa Number
+            // Hitung delay ESP32 → Broker → Website (ms)
             let sentTime = Number(data.sentTime) || arrivalTime;
             let realDelay = arrivalTime - sentTime;
             if (realDelay < 0) realDelay = 0;
@@ -77,34 +80,47 @@ mqtt.on('messageArrived', (msg) => {
 
             let info = data.message || data.status;
             let uid  = data.userId || data.user_id || "Unknown";
+
+            // Simpan ke log: yang disimpan adalah delay kecil, bukan 13 digit
             addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
+
         } else if (topic === TOPIC_PARAM) {
+            // Hitung delay param untuk Network QoS
             let sentTime = Number(data.sentTime) || arrivalTime;
             let delay    = arrivalTime - sentTime;
             if (delay < 0) delay = 0;
 
             let jitter = Math.abs(delay - prevDelay);
             prevDelay  = delay;
+
+            // Ukuran pesan & throughput (sederhana, bps)
             let size       = data.messageSize || payload.length;
             let throughput = size * 8;
             let loss       = 0;
 
             console.log('DEBUG PARAM', { sentTime, arrivalTime, delay, jitter });
 
+            // MASUKKAN KE HISTORY: hanya delay/jitter/throughput kecil
             updateHistory(dev, delay, jitter, throughput, loss, size);
+
+            // Simpan ke log tabel
             addLog(arrivalTime, dev, "-", "QoS Report", delay, jitter, throughput, "INFO");
 
+            // Update kartu + grafik untuk device yang aktif
             if (dev === activeDevice) {
                 updateDashboardCards(delay, jitter, throughput, loss, size);
                 updateCharts(historyData[dev]);
             }
         }
 
+        // Simpan ke localStorage
         saveDataToLocal();
+
     } catch (e) {
         console.error('❌ Error parsing JSON:', e);
     }
 });
+
 
 // DATA PERSISTENCE
 function saveDataToLocal() {

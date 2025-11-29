@@ -56,8 +56,8 @@
         </div>
 
         <div class="device-tabs">
-            <button class="tab-btn active" onclick="switchDevice('cam')" id="btn-cam"><i class="fas fa-camera"></i> ESP32-CAM</button>
-            <button class="tab-btn" onclick="switchDevice('rfid')" id="btn-rfid"><i class="fas fa-id-card"></i> RFID</button>
+            <button class="tab-btn" onclick="switchDevice('cam')" id="btn-cam"><i class="fas fa-camera"></i> ESP32-CAM</button>
+            <button class="tab-btn active" onclick="switchDevice('rfid')" id="btn-rfid"><i class="fas fa-id-card"></i> RFID</button>
             <button class="tab-btn" onclick="switchDevice('finger')" id="btn-finger"><i class="fas fa-fingerprint"></i> FINGERPRINT</button>
         </div>
 
@@ -113,6 +113,7 @@
         </div>
 
         <div id="page-network" class="page-section">
+            
             <div class="d-flex justify-content-end mb-3">
                 <button id="btn-hapus-db" class="btn btn-danger shadow-sm" onclick="clearQoSDB()">
                     <i class="fas fa-trash-alt me-2"></i> HAPUS DATA DATABASE
@@ -149,6 +150,25 @@
                 <div class="col-md-4">
                     <div class="btn-panel bg-enroll" data-bs-toggle="modal" data-bs-target="#enrollModal">
                         <i class="fas fa-user-plus fa-3x mb-3"></i><br>TAMBAH USER
+                    </div>
+                </div>
+            </div>
+            <div class="card mt-4">
+                <div class="card-header bg-danger text-white">
+                    <i class="fas fa-trash"></i> Hapus User Permanen dari Perangkat
+                </div>
+                <div class="card-body">
+                    <p>Pilih alat dan masukkan ID User yang ingin dihapus permanen dari memori perangkat (BUKAN dari Database Logs).</p>
+                    <div class="input-group mb-3">
+                        <select class="form-select" id="deleteDevice">
+                            <option value="cam">ESP32-CAM (Wajah)</option>
+                            <option value="rfid">RFID Reader</option>
+                            <option value="finger">Fingerprint</option>
+                        </select>
+                        <input type="number" class="form-control" id="deleteID" placeholder="ID User (Contoh: 2)" required>
+                        <button class="btn btn-danger" type="button" onclick="confirmDeleteUser()">
+                            Hapus Permanen
+                        </button>
                     </div>
                 </div>
             </div>
@@ -211,7 +231,8 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> <script src="lib/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="lib/chart.umd.js"></script>
     <script src="lib/mqttws31.min.js"></script>
     <script src="js/mqtt-client.js"></script>
     <script src="js/dashboard.js"></script> 

@@ -1,24 +1,19 @@
 // ========================================
 // DASHBOARD.JS - FINAL COMPLETE VERSION
-// Fitur: MQTT, Database, Chart, Control, Enroll, Delete, & Live Stream
+// Fitur: Persistent Data, Delete API, Control Panel Logic (LENGKAP)
 // ========================================
 
-// 1. KONFIGURASI (PENTING: Cek Serial Monitor untuk IP)
-const ESP32_IP = "192.168.18.185"; // <--- GANTI JIKA IP BERUBAH
-
-// Konfigurasi MQTT HiveMQ
+const ESP32_IP = "192.168.18.185"; 
 const MQTT_BROKER = "4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const MQTT_ID = "admin_web_" + Math.random().toString(16).substr(2, 8);
 const MQTT_USER = "Alkadir";
 const MQTT_PASS = "Alkadir123";
 
-// Topik MQTT
 const TOPIC_AUTH = "smartdoor/auth";   
 const TOPIC_PARAM = "smartdoor/param"; 
 const TOPIC_CONTROL = "smartdoor/control";
 
-// Variabel Global
 let activeDevice = 'finger'; 
 let historyData = {
     cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
@@ -29,53 +24,16 @@ let logHistory = [];
 let charts = null;
 let prevDelay = 0; 
 
-// ==================================================
-// 2. INITIALIZATION (Saat Website Dibuka)
-// ==================================================
+// INITIALIZATION
 window.onload = function() {
     console.log("🚀 System Starting...");
-    
-    // 1. Siapkan Grafik
     initCharts(); 
-    
-    // 2. Ambil Data Lama (Agar tidak hilang saat refresh)
     loadDataFromLocal(); 
-    
-    // 3. Konek ke Server MQTT
     connectMQTT(); 
-    
-    // 4. Set Tampilan Awal
     switchDevice('finger'); 
-    
-    // 5. NYALAKAN KAMERA (Live Stream)
-    refreshCam(); 
 };
 
-// ==================================================
-// 3. LOGIKA KAMERA (LIVE STREAM)
-// ==================================================
-function refreshCam() {
-    const img = document.getElementById('cam-feed');
-    if(!img) return;
-
-    // Tips: Tambahkan timestamp (?t=...) agar browser tidak menyimpan cache gambar lama
-    // Ganti "http://" dengan link NGROK jika ingin akses dari luar jaringan rumah
-    const url = `http://${ESP32_IP}:80/stream`; 
-    
-    img.src = url;
-    
-    // Jika stream error/putus, coba sambung lagi dalam 3 detik
-    img.onerror = function() {
-        console.warn("⚠️ Stream terputus atau diblokir browser. Reconnecting...");
-        setTimeout(() => {
-            img.src = url + "?t=" + new Date().getTime();
-        }, 3000);
-    };
-}
-
-// ==================================================
-// 4. MQTT LOGIC (Jantung Komunikasi)
-// ==================================================
+// MQTT LOGIC
 const mqtt = new MQTTClient(MQTT_BROKER, MQTT_PORT, MQTT_ID);
 
 function connectMQTT() {
@@ -83,7 +41,6 @@ function connectMQTT() {
 }
 
 mqtt.on('connect', () => {
-    console.log("✅ MQTT Connected!");
     document.getElementById('mqtt-status').innerText = "Online";
     document.getElementById('mqtt-status').className = "badge bg-success";
     mqtt.subscribe(TOPIC_AUTH);
@@ -97,66 +54,43 @@ mqtt.on('messageArrived', (msg) => {
 
     try {
         const data = JSON.parse(payload);
-        
-        // Normalisasi nama device (agar rfid, fingerprint, cam terbaca seragam)
         let devRaw = (data.device || 'rfid').toLowerCase();
         let dev = 'rfid';
         if (devRaw.includes('cam')) dev = 'cam';
         else if (devRaw.includes('finger')) dev = 'finger';
 
-        // --- SKENARIO 1: DATA LOG AUTENTIKASI ---
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
-            
-            // Hitung Delay Real-time
             let sentTime = data.sentTime || arrivalTime;
             let realDelay = arrivalTime - sentTime;
-            if (realDelay < 0) realDelay = 0; // Koreksi jam
-            
+            if (realDelay < 0) realDelay = 0;
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
-            
             addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
         }
-        
-        // --- SKENARIO 2: DATA GRAFIK QOS ---
         else if (topic === TOPIC_PARAM) {
             let sentTime = data.sentTime || arrivalTime;
             let delay = arrivalTime - sentTime; 
             if (delay < 0) delay = Math.abs(delay) % 10; 
-
-            // Hitung Jitter (Selisih delay sekarang vs sebelumnya)
             let jitter = Math.abs(delay - prevDelay);
             prevDelay = delay;
-
             let size = data.messageSize || payload.length;
-            let throughput = size * 8; // Bits
+            let throughput = size * 8; 
             let loss = 0; 
-
-            // Masukkan ke Grafik
             updateHistory(dev, delay, jitter, throughput, loss, size);
-            
-            // Catat juga di log sebagai info
             addLog(arrivalTime, dev, "-", "QoS Report", delay, jitter, throughput, "INFO");
-
-            // Update layar jika device sedang dilihat
             if (dev === activeDevice) {
                 updateDashboardCards(delay, jitter, throughput, loss, size);
                 updateCharts(historyData[dev]);
             }
         }
-        
-        // Simpan data setiap ada pesan baru
         saveDataToLocal();
-
     } catch (e) {
         console.error('❌ Error parsing JSON:', e);
     }
 });
 
-// ==================================================
-// 5. DATA PERSISTENCE (Simpan di Browser)
-// ==================================================
+// DATA PERSISTENCE
 function saveDataToLocal() {
     localStorage.setItem('smartdoor_charts', JSON.stringify(historyData));
     localStorage.setItem('smartdoor_logs', JSON.stringify(logHistory));
@@ -166,10 +100,8 @@ function saveDataToLocal() {
 function loadDataFromLocal() {
     const savedCharts = localStorage.getItem('smartdoor_charts');
     if (savedCharts) historyData = JSON.parse(savedCharts);
-
     const savedActive = localStorage.getItem('smartdoor_active');
     if (savedActive) activeDevice = savedActive;
-
     const savedLogs = localStorage.getItem('smartdoor_logs');
     if (savedLogs) {
         logHistory = JSON.parse(savedLogs);
@@ -182,11 +114,11 @@ function loadDataFromLocal() {
     updateCharts(historyData[activeDevice]);
 }
 
-// ==================================================
-// 6. CONTROL PANEL & ENROLL
-// ==================================================
+// ========================================
+// 6. CONTROL PANEL LOGIC (Buka/Kunci & Enroll)
+// ========================================
 
-// Kirim Perintah Buka/Kunci Pintu
+// 1. KIRIM PERINTAH BUKA/KUNCI PINTU
 function kirimPerintah(cmd) {
     if (!mqtt.isConnected) { alert("MQTT Disconnected"); return; }
     
@@ -195,16 +127,12 @@ function kirimPerintah(cmd) {
     alert("Perintah Terkirim: " + cmd.toUpperCase());
 }
 
-// Fungsi Tambah User Baru
+// 2. FUNGSI TAMBAH USER BARU (ENROLL)
 function submitEnroll() {
     const device = document.getElementById('enrollDevice').value;
     const id = document.getElementById('enrollID').value;
 
-    if (!id) {
-        alert("Harap isi ID User!");
-        return;
-    }
-
+    if (!id) { alert("Harap isi ID User!"); return; }
     if (!mqtt.isConnected) { alert("MQTT Disconnected"); return; }
 
     const payload = JSON.stringify({
@@ -216,15 +144,13 @@ function submitEnroll() {
     mqtt.publish(TOPIC_CONTROL, payload);
     alert(`Perintah REKAM dikirim ke ${device.toUpperCase()} untuk ID: ${id}`);
     
-    // Tutup Modal Popup
+    // Tutup Modal
     const modalEl = document.getElementById('enrollModal');
     if(modalEl) {
-        // Coba tutup pakai Bootstrap Instance
         try {
             const modal = bootstrap.Modal.getInstance(modalEl);
             if(modal) modal.hide();
         } catch(e) {
-            // Fallback manual jika gagal
             modalEl.classList.remove('show');
             modalEl.style.display = 'none';
             const backdrop = document.querySelector('.modal-backdrop');
@@ -233,28 +159,34 @@ function submitEnroll() {
     }
 }
 
-// ==================================================
-// 7. DELETE DATABASE (Konek ke Backend)
-// ==================================================
+// 3. FUNGSI HAPUS USER DARI PERANGKAT
+function confirmDeleteUser() {
+    const device = document.getElementById('deleteDevice').value;
+    const id = document.getElementById('deleteID').value;
+
+    if (!id || parseInt(id) <= 0) { alert("Harap masukkan ID User (angka positif) yang valid."); return; }
+    if (!mqtt.isConnected) { alert("MQTT Disconnected! Server tidak bisa mengirim perintah."); return; }
+
+    if (!confirm(`⚠️ PERINGATAN! Anda akan menghapus User ID ${id} dari perangkat ${device.toUpperCase()} secara PERMANEN. Lanjutkan?`)) { return; }
+
+    const payload = JSON.stringify({ cmd: "delete", type: device, id: parseInt(id) });
+    mqtt.publish(TOPIC_CONTROL, payload);
+    alert(`Perintah HAPUS dikirim ke ${device.toUpperCase()} untuk ID: ${id}.`);
+}
+
+// 4. DELETE DATABASE LOGIC
 async function clearQoSDB() {
     if(!confirm("⚠️ PERINGATAN KERAS!\n\nAnda akan menghapus SELURUH data Network QoS di MongoDB Atlas secara PERMANEN.\nData tidak bisa dikembalikan!")) return;
-
     const btn = document.getElementById('btn-hapus-db');
     if(btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghapus...'; btn.disabled = true; }
-
     try {
         const response = await fetch('/api/clear-qos', { method: 'DELETE' });
-        
-        if (response.status === 404) throw new Error("Backend belum diupdate (404 Not Found). Lakukan Git Push.");
-        
+        if (response.status === 404) throw new Error("Backend belum diupdate (404)");
         const result = await response.json();
-
         if (result.success) {
             alert("✅ Sukses! Database MongoDB Atlas sudah bersih.");
-            resetAllData(); // Bersihkan layar juga
-        } else {
-            throw new Error(result.error || "Gagal menghapus data server");
-        }
+            resetAllData(); 
+        } else { throw new Error(result.error); }
     } catch (error) {
         console.error(error);
         alert("❌ GAGAL: " + error.message);
@@ -263,7 +195,6 @@ async function clearQoSDB() {
     }
 }
 
-// Reset data di layar browser
 function resetAllData() {
     historyData = {
         cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
@@ -274,9 +205,7 @@ function resetAllData() {
     localStorage.removeItem('smartdoor_charts');
     localStorage.removeItem('smartdoor_logs');
     localStorage.removeItem('smartdoor_active');
-
     if(document.getElementById('log-table-body')) document.getElementById('log-table-body').innerHTML = '';
-    
     if(charts) {
         ['delay', 'jitter', 'throu', 'loss', 'size'].forEach(key => {
             if (charts[key]) {
@@ -290,9 +219,7 @@ function resetAllData() {
     resetUserInfo();
 }
 
-// ==================================================
-// 8. CHART & UI HELPERS
-// ==================================================
+// UI HELPERS
 function updateHistory(dev, d, j, t, l, s) {
     if (!historyData[dev]) return;
     const h = historyData[dev];
@@ -361,7 +288,6 @@ function renderRow(log) {
     if (table.rows.length > 50) table.deleteRow(50);
 }
 
-// NAVIGATION & TABS
 function switchPage(page) {
     document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));

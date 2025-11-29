@@ -1,8 +1,9 @@
 // ========================================
 // DASHBOARD.JS - FINAL FIXED VERSION
-// Fitur: Persistent Data, Delete API, Auto-Hide Tabs
+// Fitur: Persistent Data, Delete API, Fix Navigation Error
 // ========================================
 
+// 1. KONFIGURASI
 const ESP32_IP = "192.168.18.185"; 
 const MQTT_BROKER = "4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
@@ -24,7 +25,9 @@ let logHistory = [];
 let charts = null;
 let prevDelay = 0; 
 
-// 1. INITIALIZATION
+// ==================================================
+// 2. INITIALIZATION
+// ==================================================
 window.onload = function() {
     console.log("🚀 System Starting...");
     initCharts(); 
@@ -33,7 +36,9 @@ window.onload = function() {
     switchDevice('finger'); 
 };
 
-// 2. MQTT LOGIC
+// ==================================================
+// 3. MQTT LOGIC
+// ==================================================
 const mqtt = new MQTTClient(MQTT_BROKER, MQTT_PORT, MQTT_ID);
 
 function connectMQTT() {
@@ -55,11 +60,14 @@ mqtt.on('messageArrived', (msg) => {
 
     try {
         const data = JSON.parse(payload);
+        
+        // Normalisasi nama device
         let devRaw = (data.device || 'rfid').toLowerCase();
         let dev = 'rfid';
         if (devRaw.includes('cam')) dev = 'cam';
         else if (devRaw.includes('finger')) dev = 'finger';
 
+        // LOGIKA TABEL (AUTH)
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
             let sentTime = data.sentTime || arrivalTime;
@@ -68,8 +76,11 @@ mqtt.on('messageArrived', (msg) => {
             
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
+            
             addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
         }
+
+        // LOGIKA GRAFIK (PARAM)
         else if (topic === TOPIC_PARAM) {
             let sentTime = data.sentTime || arrivalTime;
             let delay = arrivalTime - sentTime; 
@@ -90,13 +101,17 @@ mqtt.on('messageArrived', (msg) => {
                 updateCharts(historyData[dev]);
             }
         }
+        
         saveDataToLocal();
+
     } catch (e) {
         console.error('❌ Error parsing JSON:', e);
     }
 });
 
-// 3. DATA PERSISTENCE
+// ==================================================
+// 4. DATA SAVING & LOADING
+// ==================================================
 function saveDataToLocal() {
     localStorage.setItem('smartdoor_charts', JSON.stringify(historyData));
     localStorage.setItem('smartdoor_logs', JSON.stringify(logHistory));
@@ -122,19 +137,25 @@ function loadDataFromLocal() {
     updateCharts(historyData[activeDevice]);
 }
 
-// ========================================
-// FUNGSI HAPUS DATABASE (Backend)
-// ========================================
+// ==================================================
+// 5. FUNGSI HAPUS DATABASE (Backend)
+// ==================================================
 async function clearQoSDB() {
     if(!confirm("⚠️ PERINGATAN KERAS!\n\nAnda akan menghapus SELURUH data Network QoS di MongoDB Atlas secara PERMANEN.\nData tidak bisa dikembalikan!")) return;
 
     const btn = document.getElementById('btn-hapus-db');
-    const oriText = btn.innerHTML;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghapus...';
-    btn.disabled = true;
+    // Cek dulu tombolnya ada atau tidak (karena tombol ini cuma ada di halaman network)
+    if(btn) {
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghapus...';
+        btn.disabled = true;
+    }
 
     try {
         const response = await fetch('/api/clear-qos', { method: 'DELETE' });
+        
+        // Handle jika backend belum siap (404)
+        if (response.status === 404) throw new Error("Backend belum diupdate (404 Not Found)");
+        
         const result = await response.json();
 
         if (result.success) {
@@ -145,10 +166,12 @@ async function clearQoSDB() {
         }
     } catch (error) {
         console.error(error);
-        alert("❌ GAGAL: " + error.message + "\n\nPastikan Anda sudah 'Git Push' kode backend terbaru ke Render!");
+        alert("❌ GAGAL: " + error.message + "\n\nSolusi: Lakukan 'Git Push' di folder backend agar Render terupdate.");
     } finally {
-        btn.innerHTML = oriText;
-        btn.disabled = false;
+        if(btn) {
+            btn.innerHTML = '<i class="fas fa-trash-alt me-2"></i> HAPUS DATA DATABASE';
+            btn.disabled = false;
+        }
     }
 }
 
@@ -178,7 +201,9 @@ function resetAllData() {
     resetUserInfo();
 }
 
-// 4. CHART & UI
+// ==================================================
+// 6. CHART MANAGEMENT
+// ==================================================
 function updateHistory(dev, d, j, t, l, s) {
     if (!historyData[dev]) return;
     const h = historyData[dev];
@@ -221,6 +246,9 @@ function updateCharts(dataObj) {
     update(charts.size, dataObj.size);
 }
 
+// ==================================================
+// 7. UI HELPER
+// ==================================================
 function addLog(time, dev, id, msg, delay, jitter, throu, status) {
     const logData = { time, dev, id, msg, delay: parseFloat(delay).toFixed(0), jitter: parseFloat(jitter).toFixed(0), throu: parseFloat(throu).toFixed(0), status };
     logHistory.unshift(logData);
@@ -257,7 +285,7 @@ function renderRow(log) {
 }
 
 // ========================================
-// FUNGSI NAVIGASI (Auto-Hide Tabs)
+// FUNGSI NAVIGASI (FIX ERROR CLASSLIST)
 // ========================================
 function switchPage(page) {
     document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
@@ -265,18 +293,20 @@ function switchPage(page) {
     document.getElementById('page-' + page).classList.add('active');
     
     const navs = document.querySelectorAll('.nav-item');
-    // Asumsi urutan sidebar: 0=Header, 1=Dash, 2=Net, 3=Ctrl, 4=Log
-    if(page === 'dashboard') navs[1].classList.add('active'); 
-    else if(page === 'network') navs[2].classList.add('active');
-    else if(page === 'control') navs[3].classList.add('active');
-    else if(page === 'data') navs[4].classList.add('active');
+    // Update warna tombol sidebar (0=Dashboard, 1=Network, 2=Control, 3=Log)
+    if(page === 'dashboard' && navs[0]) navs[0].classList.add('active'); 
+    else if(page === 'network' && navs[1]) navs[1].classList.add('active');
+    else if(page === 'control' && navs[2]) navs[2].classList.add('active');
+    else if(page === 'data' && navs[3]) navs[3].classList.add('active');
 
-    // HIDE TABS DEVICE di halaman Control & Data Logs
+    // Sembunyikan Tabs Device di halaman tertentu
     const tabContainer = document.querySelector('.device-tabs');
-    if (page === 'control' || page === 'data') {
-        tabContainer.style.display = 'none';
-    } else {
-        tabContainer.style.display = 'flex';
+    if(tabContainer) {
+        if (page === 'control' || page === 'data') {
+            tabContainer.style.display = 'none';
+        } else {
+            tabContainer.style.display = 'flex';
+        }
     }
     
     if(page === 'network' && charts && charts.delay) charts.delay.resize();

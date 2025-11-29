@@ -1,11 +1,9 @@
 // ========================================
-// DASHBOARD.JS - ULTIMATE FIX
-// Fitur: Simpan Data Permanen di Browser & Reset Total
+// DASHBOARD.JS - FINAL FIXED VERSION
+// Fitur: Persistent Data, Delete API, Auto-Hide Tabs
 // ========================================
 
-// 1. KONFIGURASI
 const ESP32_IP = "192.168.18.185"; 
-
 const MQTT_BROKER = "4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
 const MQTT_ID = "admin_web_" + Math.random().toString(16).substr(2, 8);
@@ -16,42 +14,26 @@ const TOPIC_AUTH = "smartdoor/auth";
 const TOPIC_PARAM = "smartdoor/param"; 
 const TOPIC_CONTROL = "smartdoor/control";
 
-// Variabel Data
 let activeDevice = 'finger'; 
-
-// Struktur Data Grafik (Default Kosong)
 let historyData = {
     cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
     rfid: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
     finger: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] }
 };
-
-let logHistory = []; // Simpan data tabel
+let logHistory = [];
 let charts = null;
 let prevDelay = 0; 
 
-// ==================================================
-// 2. INITIALIZATION
-// ==================================================
+// 1. INITIALIZATION
 window.onload = function() {
     console.log("🚀 System Starting...");
-    
-    // 1. Siapkan Grafik Dulu
     initCharts(); 
-
-    // 2. Ambil Data Lama dari Memori Browser
-    loadDataFromLocal();
-
-    // 3. Konek MQTT
+    loadDataFromLocal(); // Load data lama
     connectMQTT(); 
-    
-    // 4. Tampilkan device terakhir
-    switchDevice(activeDevice);
+    switchDevice('finger'); 
 };
 
-// ==================================================
-// 3. MQTT LOGIC
-// ==================================================
+// 2. MQTT LOGIC
 const mqtt = new MQTTClient(MQTT_BROKER, MQTT_PORT, MQTT_ID);
 
 function connectMQTT() {
@@ -73,13 +55,11 @@ mqtt.on('messageArrived', (msg) => {
 
     try {
         const data = JSON.parse(payload);
-        
         let devRaw = (data.device || 'rfid').toLowerCase();
         let dev = 'rfid';
         if (devRaw.includes('cam')) dev = 'cam';
         else if (devRaw.includes('finger')) dev = 'finger';
 
-        // LOGIKA TABEL (AUTH)
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
             let sentTime = data.sentTime || arrivalTime;
@@ -88,11 +68,8 @@ mqtt.on('messageArrived', (msg) => {
             
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
-            
             addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
         }
-
-        // LOGIKA GRAFIK (PARAM)
         else if (topic === TOPIC_PARAM) {
             let sentTime = data.sentTime || arrivalTime;
             let delay = arrivalTime - sentTime; 
@@ -105,54 +82,34 @@ mqtt.on('messageArrived', (msg) => {
             let throughput = size * 8; 
             let loss = 0; 
 
-            // Masukkan ke Array Grafik
             updateHistory(dev, delay, jitter, throughput, loss, size);
-
-            // Masukkan ke Tabel juga sebagai info
             addLog(arrivalTime, dev, "-", "QoS Report", delay, jitter, throughput, "INFO");
 
-            // Update Tampilan jika sedang aktif
             if (dev === activeDevice) {
                 updateDashboardCards(delay, jitter, throughput, loss, size);
                 updateCharts(historyData[dev]);
             }
         }
-        
-        // SIMPAN SETIAP ADA DATA BARU
         saveDataToLocal();
-
     } catch (e) {
         console.error('❌ Error parsing JSON:', e);
     }
 });
 
-// ==================================================
-// 4. DATA SAVING & LOADING (LOCAL STORAGE)
-// ==================================================
-
+// 3. DATA PERSISTENCE
 function saveDataToLocal() {
-    // Simpan Grafik
     localStorage.setItem('smartdoor_charts', JSON.stringify(historyData));
-    // Simpan Tabel
     localStorage.setItem('smartdoor_logs', JSON.stringify(logHistory));
-    // Simpan Device Terakhir yang dibuka
     localStorage.setItem('smartdoor_active', activeDevice);
 }
 
 function loadDataFromLocal() {
-    // Load Grafik
     const savedCharts = localStorage.getItem('smartdoor_charts');
-    if (savedCharts) {
-        historyData = JSON.parse(savedCharts);
-    }
+    if (savedCharts) historyData = JSON.parse(savedCharts);
 
-    // Load Device Terakhir
     const savedActive = localStorage.getItem('smartdoor_active');
-    if (savedActive) {
-        activeDevice = savedActive;
-    }
+    if (savedActive) activeDevice = savedActive;
 
-    // Load Tabel
     const savedLogs = localStorage.getItem('smartdoor_logs');
     if (savedLogs) {
         logHistory = JSON.parse(savedLogs);
@@ -162,35 +119,53 @@ function loadDataFromLocal() {
             logHistory.slice(0, 50).forEach(log => renderRow(log));
         }
     }
-    
-    // PENTING: Update Grafik di Layar setelah data di-load!
     updateCharts(historyData[activeDevice]);
 }
 
-// ==================================================
-// 5. FUNGSI HAPUS TOTAL (RESET)
-// ==================================================
-function resetAllData() {
-    if(!confirm("Yakin ingin menghapus SEMUA data tabel dan grafik?")) return;
+// ========================================
+// FUNGSI HAPUS DATABASE (Backend)
+// ========================================
+async function clearQoSDB() {
+    if(!confirm("⚠️ PERINGATAN KERAS!\n\nAnda akan menghapus SELURUH data Network QoS di MongoDB Atlas secara PERMANEN.\nData tidak bisa dikembalikan!")) return;
 
-    // 1. Reset Variabel Lokal
+    const btn = document.getElementById('btn-hapus-db');
+    const oriText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghapus...';
+    btn.disabled = true;
+
+    try {
+        const response = await fetch('/api/clear-qos', { method: 'DELETE' });
+        const result = await response.json();
+
+        if (result.success) {
+            alert("✅ Sukses! Database MongoDB Atlas sudah bersih.");
+            resetAllData(); 
+        } else {
+            throw new Error(result.error || "Gagal menghapus data server");
+        }
+    } catch (error) {
+        console.error(error);
+        alert("❌ GAGAL: " + error.message + "\n\nPastikan Anda sudah 'Git Push' kode backend terbaru ke Render!");
+    } finally {
+        btn.innerHTML = oriText;
+        btn.disabled = false;
+    }
+}
+
+function resetAllData() {
     historyData = {
         cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
         rfid: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
         finger: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] }
     };
     logHistory = [];
-
-    // 2. Hapus Memori Browser
     localStorage.removeItem('smartdoor_charts');
     localStorage.removeItem('smartdoor_logs');
     localStorage.removeItem('smartdoor_active');
 
-    // 3. Bersihkan Tampilan Tabel
-    document.getElementById('log-table-body').innerHTML = '';
-
-    // 4. Bersihkan Tampilan Grafik (PENTING)
-    if (charts) {
+    if(document.getElementById('log-table-body')) document.getElementById('log-table-body').innerHTML = '';
+    
+    if(charts) {
         ['delay', 'jitter', 'throu', 'loss', 'size'].forEach(key => {
             if (charts[key]) {
                 charts[key].data.labels = [];
@@ -199,32 +174,21 @@ function resetAllData() {
             }
         });
     }
-
-    // 5. Reset Kartu Angka
     updateDashboardCards(0,0,0,0,0);
     resetUserInfo();
-
-    alert("Semua data berhasil di-reset!");
 }
 
-// ==================================================
-// 6. CHART MANAGEMENT
-// ==================================================
+// 4. CHART & UI
 function updateHistory(dev, d, j, t, l, s) {
     if (!historyData[dev]) return;
     const h = historyData[dev];
     const timeNow = new Date().toLocaleTimeString();
-
     if (h.labels.length > 20) {
         h.labels.shift(); h.delay.shift(); h.jitter.shift();
         h.throu.shift(); h.loss.shift(); h.size.shift();
     }
     h.labels.push(timeNow);
-    h.delay.push(d);
-    h.jitter.push(j);
-    h.throu.push(t);
-    h.loss.push(l);
-    h.size.push(s);
+    h.delay.push(d); h.jitter.push(j); h.throu.push(t); h.loss.push(l); h.size.push(s);
 }
 
 function initCharts() {
@@ -257,20 +221,8 @@ function updateCharts(dataObj) {
     update(charts.size, dataObj.size);
 }
 
-// ==================================================
-// 7. UI HELPER
-// ==================================================
 function addLog(time, dev, id, msg, delay, jitter, throu, status) {
-    const logData = {
-        time: time,
-        dev: dev,
-        id: id,
-        msg: msg,
-        delay: parseFloat(delay).toFixed(0),
-        jitter: parseFloat(jitter).toFixed(0),
-        throu: parseFloat(throu).toFixed(0),
-        status: status
-    };
+    const logData = { time, dev, id, msg, delay: parseFloat(delay).toFixed(0), jitter: parseFloat(jitter).toFixed(0), throu: parseFloat(throu).toFixed(0), status };
     logHistory.unshift(logData);
     if (logHistory.length > 100) logHistory.pop();
     renderRow(logData);
@@ -287,14 +239,9 @@ function renderRow(log) {
     else if (log.dev === 'rfid') badgeColor = "bg-warning text-dark";
     else if (log.dev === 'finger') badgeColor = "bg-success";
 
-    let statusBadge = log.status;
-    if (log.status.toLowerCase().includes('success') || log.status.toLowerCase().includes('grant')) {
-        statusBadge = '<span class="badge bg-success">SUCCESS</span>';
-    } else if (log.status.toLowerCase().includes('fail') || log.status.toLowerCase().includes('denied')) {
-        statusBadge = '<span class="badge bg-danger">FAILED</span>';
-    } else if (log.status === 'INFO') {
-        statusBadge = '<span class="badge bg-info text-dark">INFO</span>';
-    }
+    let statusBadge = `<span class="badge bg-info text-dark">${log.status}</span>`;
+    if (log.status.toLowerCase().includes('success')) statusBadge = '<span class="badge bg-success">SUCCESS</span>';
+    else if (log.status.toLowerCase().includes('fail')) statusBadge = '<span class="badge bg-danger">FAILED</span>';
 
     row.innerHTML = `
         <td><small>${tStr}</small></td>
@@ -309,19 +256,40 @@ function renderRow(log) {
     if (table.rows.length > 50) table.deleteRow(50);
 }
 
+// ========================================
+// FUNGSI NAVIGASI (Auto-Hide Tabs)
+// ========================================
+function switchPage(page) {
+    document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    
+    const navs = document.querySelectorAll('.nav-item');
+    // Asumsi urutan sidebar: 0=Header, 1=Dash, 2=Net, 3=Ctrl, 4=Log
+    if(page === 'dashboard') navs[1].classList.add('active'); 
+    else if(page === 'network') navs[2].classList.add('active');
+    else if(page === 'control') navs[3].classList.add('active');
+    else if(page === 'data') navs[4].classList.add('active');
+
+    // HIDE TABS DEVICE di halaman Control & Data Logs
+    const tabContainer = document.querySelector('.device-tabs');
+    if (page === 'control' || page === 'data') {
+        tabContainer.style.display = 'none';
+    } else {
+        tabContainer.style.display = 'flex';
+    }
+    
+    if(page === 'network' && charts && charts.delay) charts.delay.resize();
+}
+
 function switchDevice(dev) {
     activeDevice = dev;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     if(document.getElementById('btn-' + dev)) document.getElementById('btn-' + dev).classList.add('active');
-
     document.querySelectorAll('.dev-view').forEach(v => v.classList.remove('active'));
     if(document.getElementById('view-' + dev)) document.getElementById('view-' + dev).classList.add('active');
-
     document.getElementById('active-device-label').innerText = dev.toUpperCase();
-    
-    // Restore Grafik saat pindah tab
     if(historyData[dev]) updateCharts(historyData[dev]);
-    
     resetUserInfo();
     updateDashboardCards(0,0,0,0,0);
 }
@@ -331,19 +299,13 @@ function updateUserInfo(data) {
     if (uid.toString().toLowerCase() === "unknown") uid = "Unknown";
     document.getElementById('user-id').innerText = uid;
     document.getElementById('user-name').innerText = data.userName || "User " + uid;
-    
     const statusEl = document.getElementById('auth-status');
     const iconEl = document.getElementById('user-icon');
     let status = (data.status || "").toLowerCase();
-
     if (status.includes("success") || status.includes("grant")) {
-        statusEl.innerText = "GRANTED";
-        statusEl.className = "fw-bold text-success";
-        iconEl.className = "fas fa-user-check fa-4x text-success";
+        statusEl.innerText = "GRANTED"; statusEl.className = "fw-bold text-success"; iconEl.className = "fas fa-user-check fa-4x text-success";
     } else {
-        statusEl.innerText = "DENIED";
-        statusEl.className = "fw-bold text-danger";
-        iconEl.className = "fas fa-user-times fa-4x text-danger";
+        statusEl.innerText = "DENIED"; statusEl.className = "fw-bold text-danger"; iconEl.className = "fas fa-user-times fa-4x text-danger";
     }
     document.getElementById('auth-time').innerText = new Date().toLocaleTimeString();
 }
@@ -365,20 +327,6 @@ function updateDashboardCards(d, j, t, l, s) {
 }
 
 function kirimPerintah(cmd) {
-    if (mqtt.isConnected) {
-        mqtt.publish(TOPIC_CONTROL, cmd);
-        alert("Perintah " + cmd + " dikirim!");
-    } else alert("MQTT Disconnected");
-}
-
-function switchPage(page) {
-    document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
-    document.getElementById('page-' + page).classList.add('active');
-    
-    const navs = document.querySelectorAll('.nav-item');
-    if(page === 'dashboard') navs[1].classList.add('active'); 
-    else if(page === 'network') navs[2].classList.add('active');
-    
-    if(page === 'network' && charts && charts.delay) charts.delay.resize();
+    if (mqtt.isConnected) { mqtt.publish(TOPIC_CONTROL, cmd); alert("Perintah " + cmd + " dikirim!"); } 
+    else alert("MQTT Disconnected");
 }

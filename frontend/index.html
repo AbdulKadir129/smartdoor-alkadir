@@ -115,8 +115,8 @@
         <div id="page-network" class="page-section">
             
             <div class="d-flex justify-content-end mb-3">
-                <button class="btn btn-danger shadow-sm" onclick="clearQoSDB()">
-                    <i class="fas fa-bomb me-2"></i> HAPUS DATA DATABASE (PERMANEN)
+                <button id="btn-hapus-db" class="btn btn-danger shadow-sm" onclick="clearQoSDB()">
+                    <i class="fas fa-trash-alt me-2"></i> HAPUS DATA DATABASE
                 </button>
             </div>
             <div class="row mb-4">
@@ -157,9 +157,18 @@
                     <button class="btn btn-sm btn-outline-danger" onclick="resetAllData()"><i class="fas fa-trash"></i> Clear View</button>
                 </div>
                 <div class="card-body table-responsive p-0">
-                    <table class="table table-hover table-striped align-middle mb-0">
+                    <table class="table table-hover table-striped align-middle mb-0" style="font-size: 0.9rem;">
                         <thead class="table-dark">
-                        <tr><th>Time</th><th>Device</th><th>User ID</th><th>Info</th><th>Delay</th><th>Jitter</th><th>Throu</th><th>Status</th></tr>
+                        <tr>
+                            <th>Time</th>
+                            <th>Device</th>
+                            <th>User ID</th>
+                            <th>Event / Msg</th>
+                            <th>Delay</th>
+                            <th>Jitter</th>
+                            <th>Throu</th>
+                            <th>Status</th>
+                        </tr>
                         </thead>
                         <tbody id="log-table-body"></tbody>
                     </table>

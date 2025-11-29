@@ -1,9 +1,8 @@
 // ========================================
 // DASHBOARD.JS - FINAL FIXED VERSION
-// Fitur: Persistent Data, Delete API, Fix Navigation Error
+// Fitur: Persistent Data, Delete API, Control Panel Logic
 // ========================================
 
-// 1. KONFIGURASI
 const ESP32_IP = "192.168.18.185"; 
 const MQTT_BROKER = "4c512df94742407c9c30ee672577eba2.s1.eu.hivemq.cloud";
 const MQTT_PORT = 8884;
@@ -25,20 +24,16 @@ let logHistory = [];
 let charts = null;
 let prevDelay = 0; 
 
-// ==================================================
-// 2. INITIALIZATION
-// ==================================================
+// INITIALIZATION
 window.onload = function() {
     console.log("🚀 System Starting...");
     initCharts(); 
-    loadDataFromLocal(); // Load data lama
+    loadDataFromLocal(); 
     connectMQTT(); 
     switchDevice('finger'); 
 };
 
-// ==================================================
-// 3. MQTT LOGIC
-// ==================================================
+// MQTT LOGIC
 const mqtt = new MQTTClient(MQTT_BROKER, MQTT_PORT, MQTT_ID);
 
 function connectMQTT() {
@@ -60,58 +55,43 @@ mqtt.on('messageArrived', (msg) => {
 
     try {
         const data = JSON.parse(payload);
-        
-        // Normalisasi nama device
         let devRaw = (data.device || 'rfid').toLowerCase();
         let dev = 'rfid';
         if (devRaw.includes('cam')) dev = 'cam';
         else if (devRaw.includes('finger')) dev = 'finger';
 
-        // LOGIKA TABEL (AUTH)
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
             let sentTime = data.sentTime || arrivalTime;
             let realDelay = arrivalTime - sentTime;
             if (realDelay < 0) realDelay = 0;
-            
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
-            
             addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
         }
-
-        // LOGIKA GRAFIK (PARAM)
         else if (topic === TOPIC_PARAM) {
             let sentTime = data.sentTime || arrivalTime;
             let delay = arrivalTime - sentTime; 
             if (delay < 0) delay = Math.abs(delay) % 10; 
-
             let jitter = Math.abs(delay - prevDelay);
             prevDelay = delay;
-
             let size = data.messageSize || payload.length;
             let throughput = size * 8; 
             let loss = 0; 
-
             updateHistory(dev, delay, jitter, throughput, loss, size);
             addLog(arrivalTime, dev, "-", "QoS Report", delay, jitter, throughput, "INFO");
-
             if (dev === activeDevice) {
                 updateDashboardCards(delay, jitter, throughput, loss, size);
                 updateCharts(historyData[dev]);
             }
         }
-        
         saveDataToLocal();
-
     } catch (e) {
         console.error('❌ Error parsing JSON:', e);
     }
 });
 
-// ==================================================
-// 4. DATA SAVING & LOADING
-// ==================================================
+// DATA PERSISTENCE
 function saveDataToLocal() {
     localStorage.setItem('smartdoor_charts', JSON.stringify(historyData));
     localStorage.setItem('smartdoor_logs', JSON.stringify(logHistory));
@@ -121,10 +101,8 @@ function saveDataToLocal() {
 function loadDataFromLocal() {
     const savedCharts = localStorage.getItem('smartdoor_charts');
     if (savedCharts) historyData = JSON.parse(savedCharts);
-
     const savedActive = localStorage.getItem('smartdoor_active');
     if (savedActive) activeDevice = savedActive;
-
     const savedLogs = localStorage.getItem('smartdoor_logs');
     if (savedLogs) {
         logHistory = JSON.parse(savedLogs);
@@ -137,41 +115,62 @@ function loadDataFromLocal() {
     updateCharts(historyData[activeDevice]);
 }
 
-// ==================================================
-// 5. FUNGSI HAPUS DATABASE (Backend)
-// ==================================================
-async function clearQoSDB() {
-    if(!confirm("⚠️ PERINGATAN KERAS!\n\nAnda akan menghapus SELURUH data Network QoS di MongoDB Atlas secara PERMANEN.\nData tidak bisa dikembalikan!")) return;
+// CONTROL PANEL LOGIC (Kirim Perintah)
+function kirimPerintah(cmd) {
+    if (!mqtt.isConnected) { alert("MQTT Disconnected"); return; }
+    
+    // Kirim JSON command
+    const payload = JSON.stringify({ cmd: cmd });
+    mqtt.publish(TOPIC_CONTROL, payload);
+    alert("Perintah Terkirim: " + cmd.toUpperCase());
+}
 
-    const btn = document.getElementById('btn-hapus-db');
-    // Cek dulu tombolnya ada atau tidak (karena tombol ini cuma ada di halaman network)
-    if(btn) {
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghapus...';
-        btn.disabled = true;
+// FUNGSI ENROLL (Tambah User)
+function submitEnroll() {
+    const device = document.getElementById('enrollDevice').value;
+    const id = document.getElementById('enrollID').value;
+
+    if (!id) {
+        alert("Harap isi ID User!");
+        return;
     }
 
+    if (!mqtt.isConnected) { alert("MQTT Disconnected"); return; }
+
+    // Format JSON untuk Enroll
+    const payload = JSON.stringify({
+        cmd: "enroll",
+        type: device,
+        id: parseInt(id)
+    });
+
+    mqtt.publish(TOPIC_CONTROL, payload);
+    alert(`Perintah REKAM dikirim ke ${device.toUpperCase()} untuk ID: ${id}`);
+    
+    // Tutup Modal
+    const modalEl = document.getElementById('enrollModal');
+    const modal = bootstrap.Modal.getInstance(modalEl);
+    modal.hide();
+}
+
+// DELETE DATABASE LOGIC
+async function clearQoSDB() {
+    if(!confirm("⚠️ PERINGATAN KERAS!\n\nAnda akan menghapus SELURUH data Network QoS di MongoDB Atlas secara PERMANEN.\nData tidak bisa dikembalikan!")) return;
+    const btn = document.getElementById('btn-hapus-db');
+    if(btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menghapus...'; btn.disabled = true; }
     try {
         const response = await fetch('/api/clear-qos', { method: 'DELETE' });
-        
-        // Handle jika backend belum siap (404)
-        if (response.status === 404) throw new Error("Backend belum diupdate (404 Not Found)");
-        
+        if (response.status === 404) throw new Error("Backend belum diupdate (404)");
         const result = await response.json();
-
         if (result.success) {
             alert("✅ Sukses! Database MongoDB Atlas sudah bersih.");
             resetAllData(); 
-        } else {
-            throw new Error(result.error || "Gagal menghapus data server");
-        }
+        } else { throw new Error(result.error); }
     } catch (error) {
         console.error(error);
-        alert("❌ GAGAL: " + error.message + "\n\nSolusi: Lakukan 'Git Push' di folder backend agar Render terupdate.");
+        alert("❌ GAGAL: " + error.message);
     } finally {
-        if(btn) {
-            btn.innerHTML = '<i class="fas fa-trash-alt me-2"></i> HAPUS DATA DATABASE';
-            btn.disabled = false;
-        }
+        if(btn) { btn.innerHTML = '<i class="fas fa-trash-alt me-2"></i> HAPUS DATA DATABASE'; btn.disabled = false; }
     }
 }
 
@@ -185,9 +184,7 @@ function resetAllData() {
     localStorage.removeItem('smartdoor_charts');
     localStorage.removeItem('smartdoor_logs');
     localStorage.removeItem('smartdoor_active');
-
     if(document.getElementById('log-table-body')) document.getElementById('log-table-body').innerHTML = '';
-    
     if(charts) {
         ['delay', 'jitter', 'throu', 'loss', 'size'].forEach(key => {
             if (charts[key]) {
@@ -201,9 +198,7 @@ function resetAllData() {
     resetUserInfo();
 }
 
-// ==================================================
-// 6. CHART MANAGEMENT
-// ==================================================
+// UI HELPERS
 function updateHistory(dev, d, j, t, l, s) {
     if (!historyData[dev]) return;
     const h = historyData[dev];
@@ -246,9 +241,6 @@ function updateCharts(dataObj) {
     update(charts.size, dataObj.size);
 }
 
-// ==================================================
-// 7. UI HELPER
-// ==================================================
 function addLog(time, dev, id, msg, delay, jitter, throu, status) {
     const logData = { time, dev, id, msg, delay: parseFloat(delay).toFixed(0), jitter: parseFloat(jitter).toFixed(0), throu: parseFloat(throu).toFixed(0), status };
     logHistory.unshift(logData);
@@ -261,54 +253,31 @@ function renderRow(log) {
     if (!table) return;
     const row = table.insertRow(0);
     const tStr = new Date(log.time).toLocaleTimeString();
-    
     let badgeColor = "bg-secondary";
     if (log.dev === 'cam') badgeColor = "bg-primary";
     else if (log.dev === 'rfid') badgeColor = "bg-warning text-dark";
     else if (log.dev === 'finger') badgeColor = "bg-success";
-
     let statusBadge = `<span class="badge bg-info text-dark">${log.status}</span>`;
     if (log.status.toLowerCase().includes('success')) statusBadge = '<span class="badge bg-success">SUCCESS</span>';
     else if (log.status.toLowerCase().includes('fail')) statusBadge = '<span class="badge bg-danger">FAILED</span>';
-
-    row.innerHTML = `
-        <td><small>${tStr}</small></td>
-        <td><span class="badge ${badgeColor}">${log.dev.toUpperCase()}</span></td>
-        <td class="fw-bold">${log.id}</td>
-        <td>${log.msg}</td>
-        <td>${log.delay} ms</td>
-        <td>${log.jitter} ms</td>
-        <td>${log.throu} bps</td>
-        <td>${statusBadge}</td>
-    `;
+    row.innerHTML = `<td><small>${tStr}</small></td><td><span class="badge ${badgeColor}">${log.dev.toUpperCase()}</span></td><td class="fw-bold">${log.id}</td><td>${log.msg}</td><td>${log.delay} ms</td><td>${log.jitter} ms</td><td>${log.throu} bps</td><td>${statusBadge}</td>`;
     if (table.rows.length > 50) table.deleteRow(50);
 }
 
-// ========================================
-// FUNGSI NAVIGASI (FIX ERROR CLASSLIST)
-// ========================================
 function switchPage(page) {
     document.querySelectorAll('.page-section').forEach(el => el.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
     document.getElementById('page-' + page).classList.add('active');
-    
     const navs = document.querySelectorAll('.nav-item');
-    // Update warna tombol sidebar (0=Dashboard, 1=Network, 2=Control, 3=Log)
     if(page === 'dashboard' && navs[0]) navs[0].classList.add('active'); 
     else if(page === 'network' && navs[1]) navs[1].classList.add('active');
     else if(page === 'control' && navs[2]) navs[2].classList.add('active');
     else if(page === 'data' && navs[3]) navs[3].classList.add('active');
-
-    // Sembunyikan Tabs Device di halaman tertentu
     const tabContainer = document.querySelector('.device-tabs');
     if(tabContainer) {
-        if (page === 'control' || page === 'data') {
-            tabContainer.style.display = 'none';
-        } else {
-            tabContainer.style.display = 'flex';
-        }
+        if (page === 'control' || page === 'data') tabContainer.style.display = 'none';
+        else tabContainer.style.display = 'flex';
     }
-    
     if(page === 'network' && charts && charts.delay) charts.delay.resize();
 }
 
@@ -354,9 +323,4 @@ function updateDashboardCards(d, j, t, l, s) {
     document.getElementById('val-throughput').innerText = parseFloat(t).toFixed(0) + " bps";
     document.getElementById('val-loss').innerText = parseFloat(l).toFixed(2) + " %";
     document.getElementById('val-size').innerText = s + " B";
-}
-
-function kirimPerintah(cmd) {
-    if (mqtt.isConnected) { mqtt.publish(TOPIC_CONTROL, cmd); alert("Perintah " + cmd + " dikirim!"); } 
-    else alert("MQTT Disconnected");
 }

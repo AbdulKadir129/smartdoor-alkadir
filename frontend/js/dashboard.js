@@ -1,6 +1,7 @@
 // ========================================
 // DASHBOARD.JS - Smart Door Admin System
 // Logic utama: MQTT, Chart, QoS, UI Control
+// UPDATED: Lazy load charts + error protection
 // ========================================
 
 // --- 1. KONFIGURASI (SESUAIKAN DENGAN ALAT) ---
@@ -30,34 +31,49 @@ let lostPackets = 0;
 let totalPackets = 0;
 
 
-// --- 2. SETUP CHART (MaintainAspectRatio FALSE = KUNCI) ---
-const createChart = (id, label, color) => new Chart(document.getElementById(id).getContext('2d'), {
-    type: 'line',
-    data: {
-        labels: [],
-        datasets: [{
-            label: label,
-            data: [],
-            borderColor: color,
-            tension: 0.3,
-            borderWidth: 2
-        }]
-    },
-    options: {
-        animation: false,
-        maintainAspectRatio: false,
-        responsive: true,
-        scales: { x: { display: false } }
-    }
-});
+// --- 2. SETUP CHART (LAZY LOAD) ---
+let charts = null;
 
-const charts = {
-    delay: createChart('chartDelay', 'Delay (ms)', '#e74a3b'),
-    jitter: createChart('chartJitter', 'Jitter (ms)', '#f6c23e'),
-    throu: createChart('chartThroughput', 'Throughput (bps)', '#4e73df'),
-    loss: createChart('chartLoss', 'Packet Loss (%)', '#36b9cc'),
-    size: createChart('chartSize', 'Msg Size (Bytes)', '#1cc88a')
-};
+function initCharts() {
+    if (charts) return; // sudah diinit, skip
+    
+    const createChart = (id, label, color) => {
+        const canvas = document.getElementById(id);
+        if (!canvas) {
+            console.warn(`⚠️ Canvas ${id} not found`);
+            return null;
+        }
+        return new Chart(canvas.getContext('2d'), {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: label,
+                    data: [],
+                    borderColor: color,
+                    tension: 0.3,
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                animation: false,
+                maintainAspectRatio: false,
+                responsive: true,
+                scales: { x: { display: false } }
+            }
+        });
+    };
+
+    charts = {
+        delay: createChart('chartDelay', 'Delay (ms)', '#e74a3b'),
+        jitter: createChart('chartJitter', 'Jitter (ms)', '#f6c23e'),
+        throu: createChart('chartThroughput', 'Throughput (bps)', '#4e73df'),
+        loss: createChart('chartLoss', 'Packet Loss (%)', '#36b9cc'),
+        size: createChart('chartSize', 'Msg Size (Bytes)', '#1cc88a')
+    };
+    
+    console.log('✅ Charts initialized');
+}
 
 
 // --- 3. MQTT LOGIC ---
@@ -140,9 +156,6 @@ mqtt.on('messageArrived', (msg) => {
         let displayData = (sourceDev === 'cam') ? (data.similarity ? data.similarity.toFixed(2) : '0.00') : 'Valid Tap';
         addLog(seq, sentTime, sourceDev, data.userId || data.uid, displayData, delay);
 
-        // --- Optional: Save to Backend ---
-        // saveToDatabase(data, sourceDev, delay, jitter, lossPct);
-
     } catch (e) {
         console.error('❌ Error parsing MQTT message:', e);
     }
@@ -172,25 +185,37 @@ function switchDevice(dev) {
 }
 
 function updateCharts(dataObj) {
-    charts.delay.data.labels = dataObj.labels;
-    charts.delay.data.datasets[0].data = dataObj.delay;
-    charts.delay.update();
+    if (!charts) return; // Chart belum diinit
+    
+    if (charts.delay) {
+        charts.delay.data.labels = dataObj.labels;
+        charts.delay.data.datasets[0].data = dataObj.delay;
+        charts.delay.update();
+    }
 
-    charts.jitter.data.labels = dataObj.labels;
-    charts.jitter.data.datasets[0].data = dataObj.jitter;
-    charts.jitter.update();
+    if (charts.jitter) {
+        charts.jitter.data.labels = dataObj.labels;
+        charts.jitter.data.datasets[0].data = dataObj.jitter;
+        charts.jitter.update();
+    }
 
-    charts.throu.data.labels = dataObj.labels;
-    charts.throu.data.datasets[0].data = dataObj.throu;
-    charts.throu.update();
+    if (charts.throu) {
+        charts.throu.data.labels = dataObj.labels;
+        charts.throu.data.datasets[0].data = dataObj.throu;
+        charts.throu.update();
+    }
 
-    charts.loss.data.labels = dataObj.labels;
-    charts.loss.data.datasets[0].data = dataObj.loss;
-    charts.loss.update();
+    if (charts.loss) {
+        charts.loss.data.labels = dataObj.labels;
+        charts.loss.data.datasets[0].data = dataObj.loss;
+        charts.loss.update();
+    }
 
-    charts.size.data.labels = dataObj.labels;
-    charts.size.data.datasets[0].data = dataObj.size;
-    charts.size.update();
+    if (charts.size) {
+        charts.size.data.labels = dataObj.labels;
+        charts.size.data.datasets[0].data = dataObj.size;
+        charts.size.update();
+    }
 }
 
 function updateUserInfo(data) {
@@ -229,6 +254,11 @@ function switchPage(page) {
     event.currentTarget.classList.add('active');
     document.getElementById('page-title').innerText = page.toUpperCase() + " VIEW";
 
+    // Inisialisasi chart saat pertama kali buka Network QoS
+    if (page === 'network') {
+        initCharts();
+    }
+
     // Hide Device Tabs in Log Page
     const tabContainer = document.querySelector('.device-tabs');
     if (page === 'data') {
@@ -251,6 +281,8 @@ function kirimPerintah(cmd) {
 
 function addLog(seq, time, dev, id, score, d) {
     let table = document.getElementById("log-table-body");
+    if (!table) return; // Proteksi jika table belum ada
+
     let row = table.insertRow(0);
     let tStr = new Date(time).toLocaleTimeString();
 

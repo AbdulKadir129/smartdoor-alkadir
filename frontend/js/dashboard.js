@@ -68,7 +68,7 @@ mqtt.on('messageArrived', (msg) => {
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
 
-            // sentTime bisa string → paksa jadi number
+            // Pakai sentTime dari alat, tapi dipaksa Number
             let sentTime = Number(data.sentTime) || arrivalTime;
             let realDelay = arrivalTime - sentTime;
             if (realDelay < 0) realDelay = 0;
@@ -76,19 +76,18 @@ mqtt.on('messageArrived', (msg) => {
             console.log('DEBUG AUTH', { sentTime, arrivalTime, realDelay });
 
             let info = data.message || data.status;
-            let uid = data.userId || data.user_id || "Unknown";
+            let uid  = data.userId || data.user_id || "Unknown";
             addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
         } else if (topic === TOPIC_PARAM) {
             let sentTime = Number(data.sentTime) || arrivalTime;
-            let delay = arrivalTime - sentTime;
+            let delay    = arrivalTime - sentTime;
             if (delay < 0) delay = 0;
 
             let jitter = Math.abs(delay - prevDelay);
-            prevDelay = delay;
-
-            let size = data.messageSize || payload.length;
+            prevDelay  = delay;
+            let size       = data.messageSize || payload.length;
             let throughput = size * 8;
-            let loss = 0;
+            let loss       = 0;
 
             console.log('DEBUG PARAM', { sentTime, arrivalTime, delay, jitter });
 

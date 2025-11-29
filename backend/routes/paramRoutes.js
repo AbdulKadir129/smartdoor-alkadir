@@ -1,179 +1,213 @@
 const express = require('express');
-const mongoose = require('mongoose');
-const ParamLog = require('./ParamLog');
 const router = express.Router();
+const ParamLog = require('../models/ParamLog');
 
-// Global storage untuk hitung QoS per device (in-memory)
-let qosData = {
-    esp32cam: { lastSeq: 0, lastDelay: 0, totalBytes: 0, startTime: Date.now(), packets: [] },
-    rfid: { lastSeq: 0, lastDelay: 0, totalBytes: 0, startTime: Date.now(), packets: [] },
-    fingerprint: { lastSeq: 0, lastDelay: 0, totalBytes: 0, startTime: Date.now(), packets: [] }
-};
 
-// ✅ FUNGSI HITUNG QOS (panggil setiap MQTT param masuk)
-function calculateQoS(payload, device) {
-    const receiveTime = Date.now();
-    const sentTime = payload.sentTime || 0;
-    const seqNum = payload.sequenceNumber || 0;
-    const msgSize = payload.messageSize || 0;
-    
-    // 1. DELAY (ms) - broker → backend
-    const delay = receiveTime - sentTime;
-    
-    // 2. PACKET LOSS (%) - dari sequenceNumber
-    const deviceData = qosData[device];
-    let packetLoss = 0;
-    if (seqNum > deviceData.lastSeq + 1) {
-        const lostPackets = seqNum - deviceData.lastSeq - 1;
-        packetLoss = (lostPackets / seqNum) * 100;
-    }
-    
-    // 3. JITTER (ms) - variasi delay berturut-turut
-    const jitter = Math.abs(delay - deviceData.lastDelay);
-    
-    // 4. THROUGHPUT (bytes/sec) - total byte diterima per detik
-    deviceData.totalBytes += msgSize;
-    const elapsed = (Date.now() - deviceData.startTime) / 1000;
-    const throughput = elapsed > 0 ? deviceData.totalBytes / elapsed : 0;
-    
-    // Update state untuk perhitungan berikutnya
-    deviceData.lastSeq = seqNum;
-    deviceData.lastDelay = delay;
-    deviceData.packets.push({ 
-        delay, 
-        seqNum, 
-        msgSize, 
-        receiveTime,
-        sentTime 
-    });
-    
-    // Simpan hanya 100 data terakhir per device (untuk realtime chart)
-    if (deviceData.packets.length > 100) {
-        deviceData.packets.shift();
-    }
-    
-    return {
-        delay: Math.round(delay),
-        packetLoss: Math.round(packetLoss * 100) / 100,
-        jitter: Math.round(jitter),
-        throughput: Math.round(throughput),
-        sequenceNumber: seqNum,
-        messageSize: msgSize,
-        receiveTime: receiveTime
-    };
-}
-
-// ✅ MQTT PARAM ENDPOINT (dari ESP32 → broker → backend)
-router.post('/param', async (req, res) => {
+// GET param logs by device
+router.get('/logs/:device', async (req, res) => {
     try {
-        const payload = req.body;
-        const device = payload.device;
-        
-        if (!['esp32cam', 'rfid', 'fingerprint'].includes(device)) {
-            return res.status(400).json({ error: 'Invalid device' });
-        }
-        
-        // Hitung QoS broker → backend
-        const qos = calculateQoS(payload, device);
-        
-        // Gabung data asli + hasil QoS
-        const paramLogData = {
-            device: device,
-            payload: JSON.stringify(payload),
-            topic: payload.topic || 'smartdoor/param',
-            messageSize: payload.messageSize || 0,
-            qos: payload.qos || 1,
-            sequenceNumber: payload.sequenceNumber || 0,
-            ...qos,  // delay, packetLoss, jitter, throughput
-            sentTime: payload.sentTime || 0
-        };
-        
-        // Simpan ke MongoDB
-        const paramLog = new ParamLog(paramLogData);
-        await paramLog.save();
-        
-        res.json({ 
-            success: true, 
-            data: paramLogData,
-            qos: qos 
-        });
-        
+        const { device } = req.params;
+        const logs = await ParamLog.find({ device }).sort({ timestamp: -1 }).limit(50);
+        res.json({ success: true, device, count: logs.length, data: logs });
     } catch (error) {
-        console.error('Param save error:', error);
-        res.status(500).json({ error: error.message });
+        console.error('❌ Error loading param logs:', error);
+        res.json({ success: true, device: req.params.device, count: 0, data: [] });
     }
 });
 
-// ✅ REALTIME QOS (untuk chart live di frontend)
-router.get('/qos/realtime', async (req, res) => {
+
+// GET param stats by device
+router.get('/stats/:device', async (req, res) => {
     try {
-        const device = req.query.device || 'esp32cam';
-        const packets = qosData[device]?.packets || [];
+        const { device } = req.params;
+        const logs = await ParamLog.find({ device });
         
+        if (!logs || logs.length === 0) {
+            return res.json({
+                success: true,
+                device,
+                stats: {
+                    avgDelay: '0.00',
+                    avgThroughput: '0.00',
+                    avgMessageSize: '0.00',
+                    avgJitter: '0.00',
+                    avgPacketLoss: '0.00',
+                    totalMessages: 0
+                }
+            });
+        }
+
+        const avgDelay = logs.reduce((sum, log) => sum + (log.delay || 0), 0) / logs.length;
+        const avgThroughput = logs.reduce((sum, log) => sum + (log.throughput || 0), 0) / logs.length;
+        const avgMessageSize = logs.reduce((sum, log) => sum + (log.messageSize || 0), 0) / logs.length;
+        const avgJitter = logs.reduce((sum, log) => sum + (log.jitter || 0), 0) / logs.length;
+        const avgPacketLoss = logs.reduce((sum, log) => sum + (log.packetLoss || 0), 0) / logs.length;
+
         res.json({
+            success: true,
             device,
-            latest: packets.slice(-10), // 10 data terakhir
             stats: {
-                avgDelay: Math.round(packets.reduce((sum, p) => sum + p.delay, 0) / packets.length || 0),
-                avgJitter: Math.round(packets.reduce((sum, p) => sum + Math.abs(p.delay - (packets[packets.length-2]?.delay || 0)), 0) / packets.length || 0),
-                totalThroughput: Math.round(qosData[device]?.totalBytes || 0),
-                packetLoss: Math.round((qosData[device]?.lastSeq || 0) * 0.01) // simplified
+                avgDelay: avgDelay.toFixed(2),
+                avgThroughput: avgThroughput.toFixed(2),
+                avgMessageSize: avgMessageSize.toFixed(2),
+                avgJitter: avgJitter.toFixed(2),
+                avgPacketLoss: avgPacketLoss.toFixed(2),
+                totalMessages: logs.length
             }
         });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('❌ Error loading param stats:', error);
+        res.json({
+            success: true,
+            device: req.params.device,
+            stats: {
+                avgDelay: '0.00',
+                avgThroughput: '0.00',
+                avgMessageSize: '0.00',
+                avgJitter: '0.00',
+                avgPacketLoss: '0.00',
+                totalMessages: 0
+            }
+        });
     }
 });
 
-// ✅ HISTORY QOS (untuk analisis skripsi)
-router.get('/qos/history', async (req, res) => {
+
+// POST param log - DENGAN PERHITUNGAN OTOMATIS + PACKET LOSS DETECTION
+router.post('/log', async (req, res) => {
     try {
-        const { device, start, end } = req.query;
-        const filter = { device };
+        const logData = { ...req.body };
         
-        if (start) filter.timestamp = { $gte: new Date(start) };
-        if (end) filter.timestamp.$lte = new Date(end);
+        // ========================================
+        // HITUNG PARAMETER MQTT JARINGAN
+        // ========================================
         
-        const logs = await ParamLog.find(filter)
+        // 1. DELAY (ms) - Waktu dari ESP32 kirim sampai Backend terima
+        const serverReceiveTime = Date.now(); // Waktu server terima (epoch ms)
+        const espSentTime = req.body.sentTime || serverReceiveTime; // Waktu ESP32 kirim
+        const delay = serverReceiveTime - espSentTime; // Delay dalam ms
+        
+        // 2. THROUGHPUT (bps) - Bits per second
+        const messageSize = req.body.messageSize || 0; // dalam bytes
+        const throughput = delay > 0 ? (messageSize * 8 * 1000) / delay : 0; // bps
+        
+        // 3. JITTER (ms) - Variasi delay antar paket
+        // Ambil delay terakhir dari device yang sama untuk menghitung jitter
+        const lastLog = await ParamLog.findOne({ device: req.body.device })
             .sort({ timestamp: -1 })
-            .limit(1000);
-            
-        res.json(logs);
-    } catch (error) {
-        res.status(500).json({ error: error.message });
-    }
-});
-
-// ✅ SUMMARY QOS per device (untuk dashboard)
-router.get('/qos/summary', async (req, res) => {
-    try {
-        const summaries = {};
-        const devices = ['esp32cam', 'rfid', 'fingerprint'];
+            .limit(1);
         
-        for (const device of devices) {
-            const stats = await ParamLog.aggregate([
-                { $match: { device } },
-                {
-                    $group: {
-                        _id: null,
-                        avgDelay: { $avg: '$delay' },
-                        avgJitter: { $avg: '$jitter' },
-                        avgThroughput: { $avg: '$throughput' },
-                        packetLoss: { $avg: '$packetLoss' },
-                        count: { $sum: 1 }
-                    }
-                }
-            ]);
+        const jitter = lastLog && lastLog.delay ? Math.abs(delay - lastLog.delay) : 0;
+        
+        // ========================================
+        // 4. PACKET LOSS - DETEKSI REAL DENGAN SEQUENCE NUMBER
+        // ========================================
+        let packetLoss = 0;
+        let lostPackets = 0;
+
+        if (req.body.sequenceNumber !== undefined) {
+            const currentSeq = parseInt(req.body.sequenceNumber);
             
-            summaries[device] = stats[0] || {
-                avgDelay: 0, avgJitter: 0, avgThroughput: 0, packetLoss: 0, count: 0
-            };
+            // Gunakan lastLog yang sudah di-query untuk jitter (efisiensi)
+            const lastLogForSeq = lastLog || await ParamLog.findOne({ device: req.body.device })
+                .sort({ timestamp: -1 })
+                .limit(1);
+            
+            if (lastLogForSeq && lastLogForSeq.sequenceNumber !== undefined) {
+                const lastSeq = lastLogForSeq.sequenceNumber;
+                const expectedSeq = lastSeq + 1;
+                
+                // Hitung packet loss
+                if (currentSeq > expectedSeq) {
+                    // Ada paket yang hilang
+                    lostPackets = currentSeq - expectedSeq;
+                    
+                    // Hitung persentase packet loss
+                    // Formula: (Lost Packets / Current Sequence) * 100
+                    packetLoss = (lostPackets / currentSeq) * 100;
+                    
+                    console.log(`⚠️ PACKET LOSS DETECTED!`);
+                    console.log(`   Device: ${req.body.device}`);
+                    console.log(`   Expected Seq: ${expectedSeq}`);
+                    console.log(`   Received Seq: ${currentSeq}`);
+                    console.log(`   Lost Packets: ${lostPackets}`);
+                    console.log(`   Loss Rate: ${packetLoss.toFixed(2)}%`);
+                    
+                    // Optional: Alert jika packet loss tinggi
+                    if (packetLoss > 10) {
+                        console.error(`🚨 HIGH PACKET LOSS ALERT: ${req.body.device} - ${packetLoss.toFixed(2)}%`);
+                    }
+                } else if (currentSeq < expectedSeq) {
+                    // Paket datang out of order (bisa diabaikan atau log)
+                    console.log(`⚠️ Out of order packet: Expected ${expectedSeq}, Got ${currentSeq}`);
+                    // Tidak hitung sebagai packet loss
+                } else {
+                    // currentSeq === expectedSeq (normal, no loss)
+                    console.log(`✅ Packet received in order: Seq ${currentSeq}`);
+                }
+            } else {
+                // Ini adalah paket pertama dari device ini
+                console.log(`ℹ️ First packet for ${req.body.device}, Seq: ${currentSeq}`);
+            }
+        } else {
+            // Tidak ada sequence number (backward compatibility)
+            console.log(`⚠️ No sequence number in packet from ${req.body.device}`);
         }
         
-        res.json(summaries);
+        // Update data dengan hasil perhitungan
+        logData.delay = Math.round(delay);
+        logData.throughput = Math.round(throughput);
+        logData.jitter = Math.round(jitter);
+        logData.packetLoss = parseFloat(packetLoss.toFixed(2));
+        logData.sequenceNumber = req.body.sequenceNumber || 0;
+        
+        // Hapus sentTime dan timestamp bawaan ESP32, pakai server time
+        delete logData.sentTime;
+        delete logData.timestamp;
+
+        // Simpan ke database
+        const paramLog = new ParamLog(logData);
+        await paramLog.save();
+        
+        console.log(`✅ Param saved: ${req.body.device} | Seq: ${logData.sequenceNumber} | Delay: ${delay}ms | Throughput: ${throughput}bps | Jitter: ${jitter}ms | Loss: ${packetLoss.toFixed(2)}%`);
+        
+        res.json({ success: true, data: paramLog });
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('❌ Error saving param log:', error);
+        res.status(500).json({ success: false, message: error.message });
     }
 });
+
+
+// DELETE param logs by device
+router.delete('/logs/:device', async (req, res) => {
+    try {
+        const { device } = req.params;
+        const result = await ParamLog.deleteMany({ device });
+        res.json({ 
+            success: true, 
+            message: `Deleted ${result.deletedCount} param logs for ${device}`,
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// DELETE all param logs (semua device)
+router.delete('/logs', async (req, res) => {
+    try {
+        const result = await ParamLog.deleteMany({});
+        res.json({ 
+            success: true, 
+            message: `Deleted all ${result.deletedCount} param logs`,
+            deletedCount: result.deletedCount 
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
 
 module.exports = router;

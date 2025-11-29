@@ -1,6 +1,6 @@
 // ========================================
-// DASHBOARD.JS - FINAL FIXED (ALL DEVICES)
-// Fitur: Support 'fingerprint' & 'esp32cam' naming
+// DASHBOARD.JS - ULTIMATE FIX
+// Fitur: Simpan Data Permanen di Browser & Reset Total
 // ========================================
 
 // 1. KONFIGURASI
@@ -12,34 +12,46 @@ const MQTT_ID = "admin_web_" + Math.random().toString(16).substr(2, 8);
 const MQTT_USER = "Alkadir";
 const MQTT_PASS = "Alkadir123";
 
-// Topik
 const TOPIC_AUTH = "smartdoor/auth";   
 const TOPIC_PARAM = "smartdoor/param"; 
 const TOPIC_CONTROL = "smartdoor/control";
 
 // Variabel Data
-let activeDevice = 'finger'; // Default ke Finger biar langsung kelihatan
-const historyData = {
+let activeDevice = 'finger'; 
+
+// Struktur Data Grafik (Default Kosong)
+let historyData = {
     cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
     rfid: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
     finger: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] }
 };
 
+let logHistory = []; // Simpan data tabel
 let charts = null;
 let prevDelay = 0; 
 
+// ==================================================
 // 2. INITIALIZATION
+// ==================================================
 window.onload = function() {
     console.log("🚀 System Starting...");
-    const logTable = document.getElementById('log-table-body');
-    if(logTable) logTable.innerHTML = ''; 
     
+    // 1. Siapkan Grafik Dulu
     initCharts(); 
+
+    // 2. Ambil Data Lama dari Memori Browser
+    loadDataFromLocal();
+
+    // 3. Konek MQTT
     connectMQTT(); 
-    switchDevice('finger'); // Set awal ke Fingerprint
+    
+    // 4. Tampilkan device terakhir
+    switchDevice(activeDevice);
 };
 
+// ==================================================
 // 3. MQTT LOGIC
+// ==================================================
 const mqtt = new MQTTClient(MQTT_BROKER, MQTT_PORT, MQTT_ID);
 
 function connectMQTT() {
@@ -62,35 +74,25 @@ mqtt.on('messageArrived', (msg) => {
     try {
         const data = JSON.parse(payload);
         
-        // --- BAGIAN INI YANG DIPERBAIKI ---
-        // Menyamakan nama yang dikirim ESP32 dengan ID di HTML
         let devRaw = (data.device || 'rfid').toLowerCase();
-        let dev = 'rfid'; // Default
+        let dev = 'rfid';
+        if (devRaw.includes('cam')) dev = 'cam';
+        else if (devRaw.includes('finger')) dev = 'finger';
 
-        if (devRaw.includes('cam')) {
-            dev = 'cam';
-        } else if (devRaw.includes('finger')) { 
-            // Menangkap 'finger' ATAU 'fingerprint'
-            dev = 'finger'; 
-        } else {
-            dev = 'rfid';
-        }
-        // ----------------------------------
-
-        // SKENARIO 1: DATA LOG (TABEL)
+        // LOGIKA TABEL (AUTH)
         if (topic === TOPIC_AUTH) {
             updateUserInfo(data);
             let sentTime = data.sentTime || arrivalTime;
-            let realDelay = arrivalTime - sentTime; 
-            if (realDelay < 0) realDelay = 0; 
+            let realDelay = arrivalTime - sentTime;
+            if (realDelay < 0) realDelay = 0;
             
             let info = data.message || data.status;
             let uid = data.userId || data.user_id || "Unknown";
             
-            addLog(arrivalTime, dev, uid, info, realDelay, data.status);
+            addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
         }
 
-        // SKENARIO 2: DATA GRAFIK (CHART)
+        // LOGIKA GRAFIK (PARAM)
         else if (topic === TOPIC_PARAM) {
             let sentTime = data.sentTime || arrivalTime;
             let delay = arrivalTime - sentTime; 
@@ -103,20 +105,111 @@ mqtt.on('messageArrived', (msg) => {
             let throughput = size * 8; 
             let loss = 0; 
 
+            // Masukkan ke Array Grafik
             updateHistory(dev, delay, jitter, throughput, loss, size);
 
+            // Masukkan ke Tabel juga sebagai info
+            addLog(arrivalTime, dev, "-", "QoS Report", delay, jitter, throughput, "INFO");
+
+            // Update Tampilan jika sedang aktif
             if (dev === activeDevice) {
                 updateDashboardCards(delay, jitter, throughput, loss, size);
                 updateCharts(historyData[dev]);
             }
         }
+        
+        // SIMPAN SETIAP ADA DATA BARU
+        saveDataToLocal();
 
     } catch (e) {
         console.error('❌ Error parsing JSON:', e);
     }
 });
 
-// 4. DATA MANAGEMENT
+// ==================================================
+// 4. DATA SAVING & LOADING (LOCAL STORAGE)
+// ==================================================
+
+function saveDataToLocal() {
+    // Simpan Grafik
+    localStorage.setItem('smartdoor_charts', JSON.stringify(historyData));
+    // Simpan Tabel
+    localStorage.setItem('smartdoor_logs', JSON.stringify(logHistory));
+    // Simpan Device Terakhir yang dibuka
+    localStorage.setItem('smartdoor_active', activeDevice);
+}
+
+function loadDataFromLocal() {
+    // Load Grafik
+    const savedCharts = localStorage.getItem('smartdoor_charts');
+    if (savedCharts) {
+        historyData = JSON.parse(savedCharts);
+    }
+
+    // Load Device Terakhir
+    const savedActive = localStorage.getItem('smartdoor_active');
+    if (savedActive) {
+        activeDevice = savedActive;
+    }
+
+    // Load Tabel
+    const savedLogs = localStorage.getItem('smartdoor_logs');
+    if (savedLogs) {
+        logHistory = JSON.parse(savedLogs);
+        const table = document.getElementById("log-table-body");
+        if(table) {
+            table.innerHTML = "";
+            logHistory.slice(0, 50).forEach(log => renderRow(log));
+        }
+    }
+    
+    // PENTING: Update Grafik di Layar setelah data di-load!
+    updateCharts(historyData[activeDevice]);
+}
+
+// ==================================================
+// 5. FUNGSI HAPUS TOTAL (RESET)
+// ==================================================
+function resetAllData() {
+    if(!confirm("Yakin ingin menghapus SEMUA data tabel dan grafik?")) return;
+
+    // 1. Reset Variabel Lokal
+    historyData = {
+        cam: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
+        rfid: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] },
+        finger: { delay: [], jitter: [], throu: [], loss: [], size: [], labels: [] }
+    };
+    logHistory = [];
+
+    // 2. Hapus Memori Browser
+    localStorage.removeItem('smartdoor_charts');
+    localStorage.removeItem('smartdoor_logs');
+    localStorage.removeItem('smartdoor_active');
+
+    // 3. Bersihkan Tampilan Tabel
+    document.getElementById('log-table-body').innerHTML = '';
+
+    // 4. Bersihkan Tampilan Grafik (PENTING)
+    if (charts) {
+        ['delay', 'jitter', 'throu', 'loss', 'size'].forEach(key => {
+            if (charts[key]) {
+                charts[key].data.labels = [];
+                charts[key].data.datasets[0].data = [];
+                charts[key].update();
+            }
+        });
+    }
+
+    // 5. Reset Kartu Angka
+    updateDashboardCards(0,0,0,0,0);
+    resetUserInfo();
+
+    alert("Semua data berhasil di-reset!");
+}
+
+// ==================================================
+// 6. CHART MANAGEMENT
+// ==================================================
 function updateHistory(dev, d, j, t, l, s) {
     if (!historyData[dev]) return;
     const h = historyData[dev];
@@ -134,7 +227,6 @@ function updateHistory(dev, d, j, t, l, s) {
     h.size.push(s);
 }
 
-// 5. CHART JS SETUP
 function initCharts() {
     if (charts) return;
     const createChart = (id, label, color) => {
@@ -156,7 +248,7 @@ function initCharts() {
 }
 
 function updateCharts(dataObj) {
-    if (!charts) return;
+    if (!charts || !dataObj) return;
     const update = (c, d) => { if(c) { c.data.labels = dataObj.labels; c.data.datasets[0].data = d; c.update(); } };
     update(charts.delay, dataObj.delay);
     update(charts.jitter, dataObj.jitter);
@@ -165,7 +257,58 @@ function updateCharts(dataObj) {
     update(charts.size, dataObj.size);
 }
 
-// 6. UI INTERACTION
+// ==================================================
+// 7. UI HELPER
+// ==================================================
+function addLog(time, dev, id, msg, delay, jitter, throu, status) {
+    const logData = {
+        time: time,
+        dev: dev,
+        id: id,
+        msg: msg,
+        delay: parseFloat(delay).toFixed(0),
+        jitter: parseFloat(jitter).toFixed(0),
+        throu: parseFloat(throu).toFixed(0),
+        status: status
+    };
+    logHistory.unshift(logData);
+    if (logHistory.length > 100) logHistory.pop();
+    renderRow(logData);
+}
+
+function renderRow(log) {
+    const table = document.getElementById("log-table-body");
+    if (!table) return;
+    const row = table.insertRow(0);
+    const tStr = new Date(log.time).toLocaleTimeString();
+    
+    let badgeColor = "bg-secondary";
+    if (log.dev === 'cam') badgeColor = "bg-primary";
+    else if (log.dev === 'rfid') badgeColor = "bg-warning text-dark";
+    else if (log.dev === 'finger') badgeColor = "bg-success";
+
+    let statusBadge = log.status;
+    if (log.status.toLowerCase().includes('success') || log.status.toLowerCase().includes('grant')) {
+        statusBadge = '<span class="badge bg-success">SUCCESS</span>';
+    } else if (log.status.toLowerCase().includes('fail') || log.status.toLowerCase().includes('denied')) {
+        statusBadge = '<span class="badge bg-danger">FAILED</span>';
+    } else if (log.status === 'INFO') {
+        statusBadge = '<span class="badge bg-info text-dark">INFO</span>';
+    }
+
+    row.innerHTML = `
+        <td><small>${tStr}</small></td>
+        <td><span class="badge ${badgeColor}">${log.dev.toUpperCase()}</span></td>
+        <td class="fw-bold">${log.id}</td>
+        <td>${log.msg}</td>
+        <td>${log.delay} ms</td>
+        <td>${log.jitter} ms</td>
+        <td>${log.throu} bps</td>
+        <td>${statusBadge}</td>
+    `;
+    if (table.rows.length > 50) table.deleteRow(50);
+}
+
 function switchDevice(dev) {
     activeDevice = dev;
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -176,16 +319,16 @@ function switchDevice(dev) {
 
     document.getElementById('active-device-label').innerText = dev.toUpperCase();
     
+    // Restore Grafik saat pindah tab
+    if(historyData[dev]) updateCharts(historyData[dev]);
+    
     resetUserInfo();
-    updateCharts(historyData[dev]);
     updateDashboardCards(0,0,0,0,0);
 }
 
 function updateUserInfo(data) {
     let uid = data.userId || data.user_id || "-";
-    // Jika uid adalah "unknown" (string), ubah jadi text biasa
     if (uid.toString().toLowerCase() === "unknown") uid = "Unknown";
-    
     document.getElementById('user-id').innerText = uid;
     document.getElementById('user-name').innerText = data.userName || "User " + uid;
     
@@ -219,33 +362,6 @@ function updateDashboardCards(d, j, t, l, s) {
     document.getElementById('val-throughput').innerText = parseFloat(t).toFixed(0) + " bps";
     document.getElementById('val-loss').innerText = parseFloat(l).toFixed(2) + " %";
     document.getElementById('val-size').innerText = s + " B";
-}
-
-function addLog(time, dev, id, msg, delay, status) {
-    const table = document.getElementById("log-table-body");
-    if (!table) return;
-
-    const row = table.insertRow(0);
-    const tStr = new Date(time).toLocaleTimeString();
-    
-    let badgeColor = "bg-secondary";
-    if (dev === 'cam') badgeColor = "bg-primary";
-    else if (dev === 'rfid') badgeColor = "bg-warning text-dark";
-    else if (dev === 'finger') badgeColor = "bg-success";
-
-    let statusBadge = (status && (status.includes('success') || status.includes('grant'))) ? 
-        '<span class="badge bg-success">SUCCESS</span>' : '<span class="badge bg-danger">FAILED</span>';
-
-    row.innerHTML = `
-        <td><small>${tStr}</small></td>
-        <td><span class="badge ${badgeColor}">${dev.toUpperCase()}</span></td>
-        <td class="fw-bold">${id}</td>
-        <td>${msg}</td>
-        <td>${parseFloat(delay).toFixed(0)} ms</td>
-        <td>${statusBadge}</td>
-    `;
-    
-    if (table.rows.length > 15) table.deleteRow(15);
 }
 
 function kirimPerintah(cmd) {

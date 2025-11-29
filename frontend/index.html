@@ -298,88 +298,89 @@
         </div>
 
         <!-- NETWORK QoS -->
-        <div id="page-network" class="page-section">
-            <div class="row mb-4">
-                <div class="col">
-                    <div class="card p-3 text-center border-start border-4 border-danger">
-                        <h4 id="val-delay">0 ms</h4>
-                        <small>DELAY</small>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card p-3 text-center border-start border-4 border-warning">
-                        <h4 id="val-jitter">0 ms</h4>
-                        <small>JITTER</small>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card p-3 text-center border-start border-4 border-primary">
-                        <h4 id="val-throughput">0 bps</h4>
-                        <small>THROUGHPUT</small>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card p-3 text-center border-start border-4 border-dark">
-                        <h4 id="val-loss">0 %</h4>
-                        <small>LOSS</small>
-                    </div>
-                </div>
-                <div class="col">
-                    <div class="card p-3 text-center border-start border-4 border-success">
-                        <h4 id="val-size">0 B</h4>
-                        <small>MSG SIZE</small>
-                    </div>
-                </div>
+<div id="page-network" class="page-section">
+    <div class="row mb-4">
+        <div class="col">
+            <div class="card p-3 text-center border-start border-4 border-danger">
+                <h4 id="val-delay">0 ms</h4>
+                <small>DELAY</small>
             </div>
+        </div>
+        <div class="col">
+            <div class="card p-3 text-center border-start border-4 border-warning">
+                <h4 id="val-jitter">0 ms</h4>
+                <small>JITTER</small>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card p-3 text-center border-start border-4 border-primary">
+                <h4 id="val-throughput">0 bps</h4>
+                <small>THROUGHPUT</small>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card p-3 text-center border-start border-4 border-dark">
+                <h4 id="val-loss">0 %</h4>
+                <small>LOSS</small>
+            </div>
+        </div>
+        <div class="col">
+            <div class="card p-3 text-center border-start border-4 border-success">
+                <h4 id="val-size">0 B</h4>
+                <small>MSG SIZE</small>
+            </div>
+        </div>
+    </div>
 
-            <div class="row">
-                <div class="col-lg-6 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <anvas id="chartDelay"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <anvas id="chartJitter"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <anvas id="chartThroughput"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6 mb-4">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <anvas id="chartLoss"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-lg-6 mb-4 mx-auto">
-                    <div class="card h-100 shadow-sm">
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <anvas id="chartSize"></canvas>
-                            </div>
-                        </div>
+    <div class="row">
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="chart-container">
+                        anvas id="chartDelay"></canvas>
                     </div>
                 </div>
             </div>
         </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="chart-container">
+                        anvas id="chartJitter"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="chart-container">
+                        anvas id="chartThroughput"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="chart-container">
+                        anvas id="chartLoss"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6 mb-4 mx-auto">
+            <div class="card h-100 shadow-sm">
+                <div class="card-body">
+                    <div class="chart-container">
+                        anvas id="chartSize"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 
         <!-- CONTROL CENTER -->
         <div id="page-control" class="page-section">

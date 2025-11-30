@@ -1,23 +1,29 @@
 const mongoose = require('mongoose');
 
 const authLogSchema = new mongoose.Schema({
-    device: { 
-        type: String, 
-        required: true 
-        // Saya hapus enum biar tidak error kalau nama beda dikit
+    device: {
+        type: String,
+        enum: ['esp32cam', 'rfid', 'fingerprint'],
+        required: true
     },
-    method: { type: String, default: 'unknown' },
-    status: { type: String, required: true },
-    userId: { type: String, default: 'Unknown' },
-    userName: { type: String, default: 'Unknown' },
-    message: { type: String, default: '-' },
+    method: { type: String, required: true },
+    status: {
+        type: String,
+        enum: ['success', 'failed'],
+        required: true
+    },
+    userId: String,
+    userName: String,
+    message: String,
+    imageUrl: String,
     
-    // Metadata untuk menyimpan info tambahan
+    // --- TAMBAHKAN BAGIAN INI ---
     metadata: {
-        authDelay: { type: Number, default: 0 },
-        confidence: { type: Number, default: 0 },
-        rssi: { type: Number, default: 0 }
+        authDelay: Number,
+        confidence: Number,
+        rssi: Number
     },
+    // ---------------------------
 
     timestamp: { type: Date, default: Date.now }
 });

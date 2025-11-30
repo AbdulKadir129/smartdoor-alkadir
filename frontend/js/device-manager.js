@@ -1,7 +1,7 @@
 // ========================================
-// DEVICE MANAGER - FIXED VERSION (MODIFIED FOR QOS)
-// Perbaikan: Target ID disesuaikan dengan HTML (log-table-body)
-// dan format output diubah menjadi Table Row (<tr>)
+// DEVICE MANAGER - IMPROVED VERSION
+// Mengelola device switching dan statistik
+// UPDATED: Menambahkan Jitter & Packet Loss display
 // ========================================
 
 class DeviceManager {
@@ -20,28 +20,18 @@ class DeviceManager {
         this.currentDevice = device;
         this.loadDeviceStats(device);
         this.loadDeviceHistory(device);
-
+        
         console.log(`✅ Device switched to: ${device}`);
     }
 
-    // Load device statistics (MODIFIED)
+    // Load device statistics
     async loadDeviceStats(device) {
         try {
             console.log(`📊 Loading stats for ${device}...`);
-
-            if (!window.BASE_URL) {
-                console.warn('⚠️ BASE_URL belum diset, skip loadDeviceStats');
-                return;
-            }
-
-            // Load auth stats (untuk total, success, failed)
+            
+            // Load auth stats
             const authRes = await fetch(`${window.BASE_URL}/api/auth/stats/${device}`);
             const authData = await authRes.json();
-            
-            // Load param stats (untuk QoS dan RSSI/Auth Delay AVG)
-            const paramRes = await fetch(`${window.BASE_URL}/api/param/stats/${device}`);
-            const paramData = await paramRes.json();
-
 
             if (authData.success) {
                 this.updateElement('statTotal', authData.stats.total || 0);
@@ -49,31 +39,20 @@ class DeviceManager {
                 this.updateElement('statFailed', authData.stats.failed || 0);
             }
 
+            // Load param stats
+            const paramRes = await fetch(`${window.BASE_URL}/api/param/stats/${device}`);
+            const paramData = await paramRes.json();
+
             if (paramData.success) {
-                // Ambil rata-rata RSSI dan Auth Delay dari data statistik
-                const avgRssi = parseFloat(paramData.stats.avgRssi || 0);
-                // ✅ TAMBAHAN: Ambil AVG Auth Delay
-                const avgAuthDelay = parseFloat(paramData.stats.avgAuthDelay || 0); 
-
-                this.updateElement('statDelay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2) + ' ms');
-                this.updateElement('statThroughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2) + ' bps');
-                this.updateElement('statMsgSize', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2) + ' B');
-                this.updateElement('statJitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2) + ' ms');
-                this.updateElement('statPacketLoss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2) + ' %');
-
-                // Update juga nilai di kartu atas (Network QoS Summary)
-                this.updateElement('val-delay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2) + ' ms');
-                this.updateElement('val-jitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2) + ' ms');
-                this.updateElement('val-throughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2) + ' bps');
-                this.updateElement('val-loss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2) + ' %');
-                this.updateElement('val-size', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2) + ' B');
+                this.updateElement('statDelay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2));
+                this.updateElement('statThroughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2));
+                this.updateElement('statMsgSize', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2));
                 
-                // ✅ TAMBAHAN: Update Kartu RSSI dan Auth Delay
-                this.updateElement('val-rssi', avgRssi.toFixed(0) + ' dBm');
-                this.updateElement('val-auth-delay', avgAuthDelay.toFixed(0) + ' ms');
-
-
-                console.log('✅ Stats loaded successfully');
+                // ✅ TAMBAHAN BARU: Jitter & Packet Loss
+                this.updateElement('statJitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2));
+                this.updateElement('statPacketLoss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2));
+                
+                console.log(`✅ Stats loaded successfully`);
             }
 
         } catch (error) {
@@ -86,7 +65,8 @@ class DeviceManager {
         const element = document.getElementById(id);
         if (element) {
             element.textContent = value;
-            // Animasi kecil
+            
+            // Add animation effect
             element.style.transform = 'scale(1.1)';
             setTimeout(() => {
                 element.style.transform = 'scale(1)';
@@ -98,12 +78,6 @@ class DeviceManager {
     async loadDeviceHistory(device) {
         try {
             console.log(`📜 Loading history for ${device}...`);
-
-            if (!window.BASE_URL) {
-                console.warn('⚠️ BASE_URL belum diset, skip loadDeviceHistory');
-                return;
-            }
-
             const response = await fetch(`${window.BASE_URL}/api/auth/logs/${device}`);
             const result = await response.json();
 
@@ -116,54 +90,36 @@ class DeviceManager {
         }
     }
 
-    // Display activity log (MODIFIED)
+    // Display activity log
     displayActivityLog(logs) {
-        const container = document.getElementById('log-table-body');
-
-        if (!container) {
-            console.warn('⚠️ log-table-body container not found, check index.html IDs');
-            return;
-        }
-
+        const container = document.getElementById('activityLog');
+        
         if (!logs || logs.length === 0) {
-            // Tampilkan pesan kosong dalam format baris tabel
-            container.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Belum ada data aktivitas.</td></tr>';
+            container.innerHTML = '<div class="no-activity">No activity yet...</div>';
             return;
         }
 
-        // PERBAIKAN 2: Mengembalikan format <tr> (Table Row) dengan 8 kolom
         container.innerHTML = logs.slice(0, 15).map(log => {
-            
-            // ✅ Ambil metrik dari Metadata (AuthLog) atau langsung dari log (ParamLog)
-            const delay = log.metadata?.authDelay || log.delay || 0;
-            const jitter = log.metadata?.jitter || log.jitter || 0;
-            const throughput = log.metadata?.throughput || log.throughput || 0;
-
             const time = new Date(log.timestamp).toLocaleString('id-ID', {
                 dateStyle: 'short',
                 timeStyle: 'medium'
             });
-
-            // Tentukan warna badge status
-            const isSuccess = log.status === 'success' || log.status === 'granted';
-            const badgeClass = isSuccess ? 'bg-success' : 'bg-danger';
-            const statusText = log.status ? log.status.toUpperCase() : 'UNKNOWN';
             
-            // Kolom Event / Msg menggunakan log.message (dari AuthLog) atau log.payload (dari ParamLog)
-            const message = log.message || log.payload || log.score || '-';
-
+            const statusClass = log.status === 'success' ? 'success' : 'failed';
+            const icon = log.status === 'success' ? '✅' : '❌';
+            const userName = log.userName || log.userId || 'Unknown';
+            const message = log.message || log.status;
+            
             return `
-                <tr>
-                    <td>${time}</td>
-                    <td><span class="badge bg-secondary">${log.device || '-'}</span></td>
-                    <td class="fw-bold">${log.userId || log.userName || '-'}</td>
-                    <td>${message}</td>
-                    
-                    <td>${delay.toFixed(0)} ms</td>
-                    <td>${jitter.toFixed(0)} ms</td>
-                    <td>${throughput.toFixed(0)} bps</td>
-                    <td><span class="badge ${badgeClass}">${statusText}</span></td>
-                </tr>
+                <div class="activity-item ${statusClass}">
+                    <div class="activity-header">
+                        <span class="activity-title">${icon} ${log.method || log.device}</span>
+                        <span class="activity-time">${time}</span>
+                    </div>
+                    <div class="activity-details">
+                        <strong>${userName}</strong> - ${message}
+                    </div>
+                </div>
             `;
         }).join('');
     }

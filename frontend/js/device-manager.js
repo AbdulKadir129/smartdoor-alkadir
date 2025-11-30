@@ -1,5 +1,5 @@
 // ========================================
-// DEVICE MANAGER - FIXED VERSION
+// DEVICE MANAGER - FIXED VERSION (MODIFIED FOR QOS)
 // Perbaikan: Target ID disesuaikan dengan HTML (log-table-body)
 // dan format output diubah menjadi Table Row (<tr>)
 // ========================================
@@ -49,18 +49,24 @@ class DeviceManager {
             const paramData = await paramRes.json();
 
             if (paramData.success) {
+                // Ambil rata-rata RSSI dari data statistik yang dikirim backend
+                const avgRssi = parseFloat(paramData.stats.avgRssi || 0);
+
                 this.updateElement('statDelay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2) + ' ms');
                 this.updateElement('statThroughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2) + ' bps');
                 this.updateElement('statMsgSize', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2) + ' B');
                 this.updateElement('statJitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2) + ' ms');
                 this.updateElement('statPacketLoss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2) + ' %');
 
-                // Update juga nilai di kartu atas (Network QoS Summary) jika ID-nya ada
+                // Update juga nilai di kartu atas (Network QoS Summary)
                 this.updateElement('val-delay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2) + ' ms');
                 this.updateElement('val-jitter', parseFloat(paramData.stats.avgJitter || 0).toFixed(2) + ' ms');
                 this.updateElement('val-throughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2) + ' bps');
                 this.updateElement('val-loss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2) + ' %');
                 this.updateElement('val-size', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2) + ' B');
+                
+                // ✅ TAMBAHAN: Update Kartu RSSI di Ringkasan QoS
+                this.updateElement('val-rssi', avgRssi.toFixed(0) + ' dBm');
 
                 console.log('✅ Stats loaded successfully');
             }
@@ -93,6 +99,7 @@ class DeviceManager {
                 return;
             }
 
+            // NOTE: Memuat log dari API Auth (yang menyimpan AuthLog/ParamLog)
             const response = await fetch(`${window.BASE_URL}/api/auth/logs/${device}`);
             const result = await response.json();
 
@@ -107,7 +114,6 @@ class DeviceManager {
 
     // Display activity log (FIXED: Uses Table Rows now)
     displayActivityLog(logs) {
-        // PERBAIKAN 1: Menggunakan ID yang benar sesuai index.html
         const container = document.getElementById('log-table-body');
 
         if (!container) {
@@ -117,12 +123,19 @@ class DeviceManager {
 
         if (!logs || logs.length === 0) {
             // Tampilkan pesan kosong dalam format baris tabel
-            container.innerHTML = '<tr><td colspan="6" class="text-center text-muted">Belum ada data aktivitas.</td></tr>';
+            // ✅ Ubah colspan menjadi 8 (sesuai jumlah kolom baru)
+            container.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Belum ada data aktivitas.</td></tr>';
             return;
         }
 
-        // PERBAIKAN 2: Mengembalikan format <tr> (Table Row) bukan <div>
+        // PERBAIKAN 2: Mengembalikan format <tr> (Table Row) dengan 8 kolom
         container.innerHTML = logs.slice(0, 15).map(log => {
+            
+            // ✅ Ambil metrik dari Metadata (untuk AuthLog) atau langsung dari log (untuk ParamLog jika digabungkan)
+            const delay = log.metadata?.authDelay || log.delay || 0;
+            const jitter = log.metadata?.jitter || log.jitter || 0;
+            const throughput = log.metadata?.throughput || log.throughput || 0;
+
             const time = new Date(log.timestamp).toLocaleString('id-ID', {
                 dateStyle: 'short',
                 timeStyle: 'medium'
@@ -132,14 +145,20 @@ class DeviceManager {
             const isSuccess = log.status === 'success' || log.status === 'granted';
             const badgeClass = isSuccess ? 'bg-success' : 'bg-danger';
             const statusText = log.status ? log.status.toUpperCase() : 'UNKNOWN';
+            
+            // Kolom Event / Msg menggunakan log.message (dari AuthLog) atau log.payload (dari ParamLog)
+            const message = log.message || log.payload || log.score || '-';
 
             return `
                 <tr>
                     <td>${time}</td>
                     <td><span class="badge bg-secondary">${log.device || '-'}</span></td>
                     <td class="fw-bold">${log.userId || log.userName || '-'}</td>
-                    <td>${log.data || log.score || '-'}</td>
-                    <td>${log.delay ? log.delay + ' ms' : '-'}</td>
+                    <td>${message}</td>
+                    
+                    <td>${delay.toFixed(0)} ms</td>
+                    <td>${jitter.toFixed(0)} ms</td>
+                    <td>${throughput.toFixed(0)} bps</td>
                     <td><span class="badge ${badgeClass}">${statusText}</span></td>
                 </tr>
             `;

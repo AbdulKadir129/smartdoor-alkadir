@@ -1,6 +1,5 @@
 // ========================================
-// DASHBOARD.JS - FINAL COMPLETE VERSION
-// Fitur: Persistent Data, Delete API, Control Panel Logic, FIX Live Stream
+// DASHBOARD.JS - FINAL COMPLETE VERSION (MODIFIED FOR QOS)
 // ========================================
 
 // 1. KONFIGURASI (PENTING: GANTI INI DENGAN IP ANDA YANG SEKARANG)
@@ -27,7 +26,13 @@ let historyData = {
 };
 let logHistory = [];
 let charts = null;
-let prevDelay = 0; 
+
+// ✅ MODIFIKASI: Menggunakan objek untuk melacak delay sebelumnya per perangkat
+let prevDelayPerDevice = {
+    cam: 0,
+    rfid: 0,
+    finger: 0
+}; 
 
 // INITIALIZATION
 window.onload = function() {
@@ -64,47 +69,57 @@ mqtt.on('messageArrived', (msg) => {
         // Normalisasi nama device
         let devRaw = (data.device || 'rfid').toLowerCase();
         let dev = 'rfid';
-        if (devRaw.includes('cam')) dev = 'cam';
+        if (devRaw.includes('cam') || devRaw.includes('face')) dev = 'cam';
         else if (devRaw.includes('finger')) dev = 'finger';
 
         if (topic === TOPIC_AUTH) {
+            // ✅ DATA AUTH BARU: Menggunakan sentTime untuk Network Delay
+            const metadata = data.metadata || {};
+            let authDelay = metadata.authDelay || 0; // ms (Waktu otentikasi perangkat)
+            let rssi = metadata.rssi || 0;           // dBm
+
             // Update kartu user terakhir
             updateUserInfo(data);
 
-            // Hitung delay ESP32 → Broker → Website (ms)
+            // Hitung Network Delay (ESP32 → Broker → Website)
             let sentTime = Number(data.sentTime) || arrivalTime;
-            let realDelay = arrivalTime - sentTime;
-            if (realDelay < 0) realDelay = 0;
+            let networkDelay = arrivalTime - sentTime;
+            if (networkDelay < 0) networkDelay = 0;
 
-            console.log('DEBUG AUTH', { sentTime, arrivalTime, realDelay });
+            console.log(`DEBUG AUTH [${dev}] Delay: ${networkDelay}ms, AuthDelay: ${authDelay}ms, RSSI: ${rssi}dBm`);
 
             let info = data.message || data.status;
             let uid  = data.userId || data.user_id || "Unknown";
 
-            // Simpan ke log: yang disimpan adalah delay kecil, bukan 13 digit
-            addLog(arrivalTime, dev, uid, info, realDelay, 0, 0, data.status);
+            // Simpan ke log: menggunakan Network Delay (web perspective)
+            addLog(arrivalTime, dev, uid, info, networkDelay, 0, 0, data.status);
 
         } else if (topic === TOPIC_PARAM) {
-            // Hitung delay param untuk Network QoS
-            let sentTime = Number(data.sentTime) || arrivalTime;
-            let delay    = arrivalTime - sentTime;
+            // ✅ DATA PARAM BARU: Menggunakan publishTime_us atau sentTime
+            
+            // Waktu Kirim ESP32 (sentTime dari Arduino, publishTime_us/1000 dari ESP-IDF)
+            let espSentTime = Number(data.sentTime) || Number(data.publishTime_us) / 1000 || arrivalTime;
+            
+            // 1. DELAY (ms) - Waktu transmisi ESP32 → Browser
+            let delay = arrivalTime - espSentTime;
             if (delay < 0) delay = 0;
 
-            let jitter = Math.abs(delay - prevDelay);
-            prevDelay  = delay;
+            // 2. JITTER (ms) - Variasi delay antar paket (per perangkat)
+            let jitter = Math.abs(delay - prevDelayPerDevice[dev]);
+            prevDelayPerDevice[dev] = delay; 
 
-            // Ukuran pesan & throughput (sederhana, bps)
-            let size       = data.messageSize || payload.length;
-            let throughput = size * 8;
-            let loss       = 0;
+            // 3. THROUGHPUT (bps)
+            let size = data.messageSize || payload.length;
+            let throughput = delay > 0 ? (size * 8 * 1000) / delay : 0;
+            let loss = data.packetLoss || 0; 
+            
+            console.log(`DEBUG PARAM [${dev}] Delay: ${delay}ms, Jitter: ${jitter}ms, Seq: ${data.sequenceNumber}`);
 
-            console.log('DEBUG PARAM', { sentTime, arrivalTime, delay, jitter });
-
-            // MASUKKAN KE HISTORY: hanya delay/jitter/throughput kecil
+            // MASUKKAN KE HISTORY
             updateHistory(dev, delay, jitter, throughput, loss, size);
 
             // Simpan ke log tabel
-            addLog(arrivalTime, dev, "-", "QoS Report", delay, jitter, throughput, "INFO");
+            addLog(arrivalTime, dev, data.sequenceNumber || 0, "QoS Report", delay, jitter, throughput, "INFO");
 
             // Update kartu + grafik untuk device yang aktif
             if (dev === activeDevice) {

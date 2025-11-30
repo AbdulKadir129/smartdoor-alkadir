@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const ParamLog = require('../models/ParamLog');
+// ✅ TAMBAHAN: Kita butuh AuthLog untuk menghitung rata-rata RSSI dan Auth Delay
+const AuthLog = require('../models/AuthLog'); 
 
 
 // GET param logs by device
@@ -16,13 +18,22 @@ router.get('/logs/:device', async (req, res) => {
 });
 
 
-// GET param stats by device
+// GET param stats by device (MODIFIED)
 router.get('/stats/:device', async (req, res) => {
     try {
         const { device } = req.params;
-        const logs = await ParamLog.find({ device });
+        const paramLogs = await ParamLog.find({ device });
+        const authLogs = await AuthLog.find({ device }); // ✅ Ambil juga Auth Logs
         
-        if (!logs || logs.length === 0) {
+        if (!paramLogs || paramLogs.length === 0) {
+            
+            // Jika tidak ada data param, hitung rata-rata RSSI/AuthDelay hanya dari AuthLog
+            const totalRssiAuth = authLogs.reduce((sum, log) => sum + (log.metadata?.rssi || 0), 0);
+            const avgRssiAuth = authLogs.length > 0 ? totalRssiAuth / authLogs.length : 0;
+            
+            const totalAuthDelay = authLogs.reduce((sum, log) => sum + (log.metadata?.authDelay || 0), 0);
+            const avgAuthDelay = authLogs.length > 0 ? totalAuthDelay / authLogs.length : 0;
+
             return res.json({
                 success: true,
                 device,
@@ -32,17 +43,28 @@ router.get('/stats/:device', async (req, res) => {
                     avgMessageSize: '0.00',
                     avgJitter: '0.00',
                     avgPacketLoss: '0.00',
-                    totalMessages: 0
+                    totalMessages: 0,
+                    // ✅ Metrik Auth (diambil dari AuthLog)
+                    avgRssi: avgRssiAuth.toFixed(0),
+                    avgAuthDelay: avgAuthDelay.toFixed(0)
                 }
             });
         }
 
-        const avgDelay = logs.reduce((sum, log) => sum + (log.delay || 0), 0) / logs.length;
-        const avgThroughput = logs.reduce((sum, log) => sum + (log.throughput || 0), 0) / logs.length;
-        const avgMessageSize = logs.reduce((sum, log) => sum + (log.messageSize || 0), 0) / logs.length;
-        const avgJitter = logs.reduce((sum, log) => sum + (log.jitter || 0), 0) / logs.length;
-        const avgPacketLoss = logs.reduce((sum, log) => sum + (log.packetLoss || 0), 0) / logs.length;
+        // 1. Hitung Statistik QoS (dari ParamLog)
+        const avgDelay = paramLogs.reduce((sum, log) => sum + (log.delay || 0), 0) / paramLogs.length;
+        const avgThroughput = paramLogs.reduce((sum, log) => sum + (log.throughput || 0), 0) / paramLogs.length;
+        const avgMessageSize = paramLogs.reduce((sum, log) => sum + (log.messageSize || 0), 0) / paramLogs.length;
+        const avgJitter = paramLogs.reduce((sum, log) => sum + (log.jitter || 0), 0) / paramLogs.length;
+        const avgPacketLoss = paramLogs.reduce((sum, log) => sum + (log.packetLoss || 0), 0) / paramLogs.length;
 
+        // 2. Hitung Statistik Auth (dari AuthLog)
+        const totalRssi = authLogs.reduce((sum, log) => sum + (log.metadata?.rssi || 0), 0);
+        const avgRssi = authLogs.length > 0 ? totalRssi / authLogs.length : 0;
+        
+        const totalAuthDelay = authLogs.reduce((sum, log) => sum + (log.metadata?.authDelay || 0), 0);
+        const avgAuthDelay = authLogs.length > 0 ? totalAuthDelay / authLogs.length : 0;
+        
         res.json({
             success: true,
             device,
@@ -52,55 +74,36 @@ router.get('/stats/:device', async (req, res) => {
                 avgMessageSize: avgMessageSize.toFixed(2),
                 avgJitter: avgJitter.toFixed(2),
                 avgPacketLoss: avgPacketLoss.toFixed(2),
-                totalMessages: logs.length
+                totalMessages: paramLogs.length,
+                // ✅ Metrik Auth
+                avgRssi: avgRssi.toFixed(0),
+                avgAuthDelay: avgAuthDelay.toFixed(0)
             }
         });
     } catch (error) {
         console.error('❌ Error loading param stats:', error);
-        res.json({
-            success: true,
-            device: req.params.device,
-            stats: {
-                avgDelay: '0.00',
-                avgThroughput: '0.00',
-                avgMessageSize: '0.00',
-                avgJitter: '0.00',
-                avgPacketLoss: '0.00',
-                totalMessages: 0
-            }
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
 
-// POST param log - DENGAN PERHITUNGAN OTOMATIS + PACKET LOSS DETECTION
+// POST param log - DENGAN PERHITUNGAN OTOMATIS + PACKET LOSS DETECTION (MODIFIED)
 router.post('/log', async (req, res) => {
     try {
         const logData = { ...req.body };
         
         // ========================================
-        // HITUNG PARAMETER MQTT JARINGAN
+        // ✅ MODIFIKASI: AMBIL DELAY/JITTER DARI FRONTEND
+        // (Solusi untuk masalah Clock Skew yang tinggi)
         // ========================================
         
-        // 1. DELAY (ms) - Waktu dari ESP32 kirim sampai Backend terima
-        const serverReceiveTime = Date.now(); // Waktu server terima (epoch ms)
-        const espSentTime = req.body.sentTime || serverReceiveTime; // Waktu ESP32 kirim
-        const delay = serverReceiveTime - espSentTime; // Delay dalam ms
-        
-        // 2. THROUGHPUT (bps) - Bits per second
-        const messageSize = req.body.messageSize || 0; // dalam bytes
-        const throughput = delay > 0 ? (messageSize * 8 * 1000) / delay : 0; // bps
-        
-        // 3. JITTER (ms) - Variasi delay antar paket
-        // Ambil delay terakhir dari device yang sama untuk menghitung jitter
-        const lastLog = await ParamLog.findOne({ device: req.body.device })
-            .sort({ timestamp: -1 })
-            .limit(1);
-        
-        const jitter = lastLog && lastLog.delay ? Math.abs(delay - lastLog.delay) : 0;
+        const delay = req.body.delay || 0;
+        const jitter = req.body.jitter || 0;
+        const throughput = req.body.throughput || 0;
+        const messageSize = req.body.messageSize || 0;
         
         // ========================================
-        // 4. PACKET LOSS - DETEKSI REAL DENGAN SEQUENCE NUMBER
+        // 4. PACKET LOSS - DETEKSI REAL DENGAN SEQUENCE NUMBER (Logika dipertahankan)
         // ========================================
         let packetLoss = 0;
         let lostPackets = 0;
@@ -108,60 +111,45 @@ router.post('/log', async (req, res) => {
         if (req.body.sequenceNumber !== undefined) {
             const currentSeq = parseInt(req.body.sequenceNumber);
             
-            // Gunakan lastLog yang sudah di-query untuk jitter (efisiensi)
-            const lastLogForSeq = lastLog || await ParamLog.findOne({ device: req.body.device })
+            // Ambil log terakhir (ParamLog)
+            const lastLog = await ParamLog.findOne({ device: req.body.device })
                 .sort({ timestamp: -1 })
                 .limit(1);
             
-            if (lastLogForSeq && lastLogForSeq.sequenceNumber !== undefined) {
-                const lastSeq = lastLogForSeq.sequenceNumber;
+            if (lastLog && lastLog.sequenceNumber !== undefined) {
+                const lastSeq = lastLog.sequenceNumber;
                 const expectedSeq = lastSeq + 1;
                 
                 // Hitung packet loss
                 if (currentSeq > expectedSeq) {
-                    // Ada paket yang hilang
                     lostPackets = currentSeq - expectedSeq;
-                    
-                    // Hitung persentase packet loss
-                    // Formula: (Lost Packets / Current Sequence) * 100
                     packetLoss = (lostPackets / currentSeq) * 100;
                     
                     console.log(`⚠️ PACKET LOSS DETECTED!`);
-                    console.log(`   Device: ${req.body.device}`);
-                    console.log(`   Expected Seq: ${expectedSeq}`);
-                    console.log(`   Received Seq: ${currentSeq}`);
-                    console.log(`   Lost Packets: ${lostPackets}`);
-                    console.log(`   Loss Rate: ${packetLoss.toFixed(2)}%`);
-                    
-                    // Optional: Alert jika packet loss tinggi
-                    if (packetLoss > 10) {
-                        console.error(`🚨 HIGH PACKET LOSS ALERT: ${req.body.device} - ${packetLoss.toFixed(2)}%`);
-                    }
+                    console.log(`   Device: ${req.body.device}`);
+                    console.log(`   Expected Seq: ${expectedSeq}, Received Seq: ${currentSeq}`);
+                    console.log(`   Loss Rate: ${packetLoss.toFixed(2)}%`);
                 } else if (currentSeq < expectedSeq) {
-                    // Paket datang out of order (bisa diabaikan atau log)
                     console.log(`⚠️ Out of order packet: Expected ${expectedSeq}, Got ${currentSeq}`);
-                    // Tidak hitung sebagai packet loss
                 } else {
-                    // currentSeq === expectedSeq (normal, no loss)
                     console.log(`✅ Packet received in order: Seq ${currentSeq}`);
                 }
             } else {
-                // Ini adalah paket pertama dari device ini
                 console.log(`ℹ️ First packet for ${req.body.device}, Seq: ${currentSeq}`);
             }
         } else {
-            // Tidak ada sequence number (backward compatibility)
             console.log(`⚠️ No sequence number in packet from ${req.body.device}`);
         }
         
-        // Update data dengan hasil perhitungan
+        // Update data dengan hasil perhitungan yang diambil dari frontend
         logData.delay = Math.round(delay);
         logData.throughput = Math.round(throughput);
         logData.jitter = Math.round(jitter);
         logData.packetLoss = parseFloat(packetLoss.toFixed(2));
+        logData.messageSize = messageSize;
         logData.sequenceNumber = req.body.sequenceNumber || 0;
         
-        // Hapus sentTime dan timestamp bawaan ESP32, pakai server time
+        // Hapus sentTime/timestamp ESP32
         delete logData.sentTime;
         delete logData.timestamp;
 

@@ -24,7 +24,7 @@ class DeviceManager {
         console.log(`✅ Device switched to: ${device}`);
     }
 
-    // Load device statistics
+    // Load device statistics (MODIFIED)
     async loadDeviceStats(device) {
         try {
             console.log(`📊 Loading stats for ${device}...`);
@@ -34,9 +34,14 @@ class DeviceManager {
                 return;
             }
 
-            // Load auth stats
+            // Load auth stats (untuk total, success, failed)
             const authRes = await fetch(`${window.BASE_URL}/api/auth/stats/${device}`);
             const authData = await authRes.json();
+            
+            // Load param stats (untuk QoS dan RSSI/Auth Delay AVG)
+            const paramRes = await fetch(`${window.BASE_URL}/api/param/stats/${device}`);
+            const paramData = await paramRes.json();
+
 
             if (authData.success) {
                 this.updateElement('statTotal', authData.stats.total || 0);
@@ -44,13 +49,11 @@ class DeviceManager {
                 this.updateElement('statFailed', authData.stats.failed || 0);
             }
 
-            // Load param stats
-            const paramRes = await fetch(`${window.BASE_URL}/api/param/stats/${device}`);
-            const paramData = await paramRes.json();
-
             if (paramData.success) {
-                // Ambil rata-rata RSSI dari data statistik yang dikirim backend
+                // Ambil rata-rata RSSI dan Auth Delay dari data statistik
                 const avgRssi = parseFloat(paramData.stats.avgRssi || 0);
+                // ✅ TAMBAHAN: Ambil AVG Auth Delay
+                const avgAuthDelay = parseFloat(paramData.stats.avgAuthDelay || 0); 
 
                 this.updateElement('statDelay', parseFloat(paramData.stats.avgDelay || 0).toFixed(2) + ' ms');
                 this.updateElement('statThroughput', parseFloat(paramData.stats.avgThroughput || 0).toFixed(2) + ' bps');
@@ -65,8 +68,10 @@ class DeviceManager {
                 this.updateElement('val-loss', parseFloat(paramData.stats.avgPacketLoss || 0).toFixed(2) + ' %');
                 this.updateElement('val-size', parseFloat(paramData.stats.avgMessageSize || 0).toFixed(2) + ' B');
                 
-                // ✅ TAMBAHAN: Update Kartu RSSI di Ringkasan QoS
+                // ✅ TAMBAHAN: Update Kartu RSSI dan Auth Delay
                 this.updateElement('val-rssi', avgRssi.toFixed(0) + ' dBm');
+                this.updateElement('val-auth-delay', avgAuthDelay.toFixed(0) + ' ms');
+
 
                 console.log('✅ Stats loaded successfully');
             }
@@ -99,7 +104,6 @@ class DeviceManager {
                 return;
             }
 
-            // NOTE: Memuat log dari API Auth (yang menyimpan AuthLog/ParamLog)
             const response = await fetch(`${window.BASE_URL}/api/auth/logs/${device}`);
             const result = await response.json();
 
@@ -112,7 +116,7 @@ class DeviceManager {
         }
     }
 
-    // Display activity log (FIXED: Uses Table Rows now)
+    // Display activity log (MODIFIED)
     displayActivityLog(logs) {
         const container = document.getElementById('log-table-body');
 
@@ -123,7 +127,6 @@ class DeviceManager {
 
         if (!logs || logs.length === 0) {
             // Tampilkan pesan kosong dalam format baris tabel
-            // ✅ Ubah colspan menjadi 8 (sesuai jumlah kolom baru)
             container.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Belum ada data aktivitas.</td></tr>';
             return;
         }
@@ -131,7 +134,7 @@ class DeviceManager {
         // PERBAIKAN 2: Mengembalikan format <tr> (Table Row) dengan 8 kolom
         container.innerHTML = logs.slice(0, 15).map(log => {
             
-            // ✅ Ambil metrik dari Metadata (untuk AuthLog) atau langsung dari log (untuk ParamLog jika digabungkan)
+            // ✅ Ambil metrik dari Metadata (AuthLog) atau langsung dari log (ParamLog)
             const delay = log.metadata?.authDelay || log.delay || 0;
             const jitter = log.metadata?.jitter || log.jitter || 0;
             const throughput = log.metadata?.throughput || log.throughput || 0;

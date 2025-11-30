@@ -78,7 +78,7 @@ mqtt.on('messageArrived', (msg) => {
             let authDelay = metadata.authDelay || 0; // ms (Waktu otentikasi perangkat)
             let rssi = metadata.rssi || 0;           // dBm
 
-            // Update kartu user terakhir
+            // Update kartu user terakhir (untuk menampilkan AuthDelay/RSSI di panel Last Authenticated)
             updateUserInfo(data);
 
             // Hitung Network Delay (ESP32 → Broker → Website)
@@ -382,20 +382,36 @@ function switchDevice(dev) {
     updateDashboardCards(0,0,0,0,0);
 }
 
+// ✅ MODIFIKASI: Menambahkan Auth Delay dan RSSI ke panel Last Authenticated
 function updateUserInfo(data) {
     let uid = data.userId || data.user_id || "-";
     if (uid.toString().toLowerCase() === "unknown") uid = "Unknown";
+    
+    // ✅ Ambil data metadata baru
+    const metadata = data.metadata || {};
+    const authDelay = metadata.authDelay !== undefined ? metadata.authDelay.toFixed(0) + " ms" : "-";
+    const rssi = metadata.rssi !== undefined ? metadata.rssi.toFixed(0) + " dBm" : "-";
+
     document.getElementById('user-id').innerText = uid;
     document.getElementById('user-name').innerText = data.userName || "User " + uid;
     const statusEl = document.getElementById('auth-status');
     const iconEl = document.getElementById('user-icon');
     let status = (data.status || "").toLowerCase();
+    
     if (status.includes("success") || status.includes("grant")) {
         statusEl.innerText = "GRANTED"; statusEl.className = "fw-bold text-success"; iconEl.className = "fas fa-user-check fa-4x text-success";
     } else {
         statusEl.innerText = "DENIED"; statusEl.className = "fw-bold text-danger"; iconEl.className = "fas fa-user-times fa-4x text-danger";
     }
     document.getElementById('auth-time').innerText = new Date().toLocaleTimeString();
+
+    // ✅ Update elemen baru
+    if (document.getElementById('auth-delay')) {
+        document.getElementById('auth-delay').innerText = authDelay;
+    }
+    if (document.getElementById('auth-rssi')) {
+        document.getElementById('auth-rssi').innerText = rssi;
+    }
 }
 
 function resetUserInfo() {
@@ -404,6 +420,13 @@ function resetUserInfo() {
     document.getElementById('auth-status').innerText = "-";
     document.getElementById('auth-time').innerText = "-";
     document.getElementById('user-icon').className = "fas fa-user fa-4x text-secondary";
+    // ✅ Reset elemen baru
+    if (document.getElementById('auth-delay')) {
+        document.getElementById('auth-delay').innerText = "-";
+    }
+    if (document.getElementById('auth-rssi')) {
+        document.getElementById('auth-rssi').innerText = "-";
+    }
 }
 
 function updateDashboardCards(d, j, t, l, s) {

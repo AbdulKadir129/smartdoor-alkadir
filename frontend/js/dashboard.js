@@ -382,7 +382,6 @@ function switchDevice(dev) {
     updateDashboardCards(0,0,0,0,0);
 }
 
-// ✅ MODIFIKASI: Menambahkan Auth Delay dan RSSI ke panel Last Authenticated
 function updateUserInfo(data) {
     let uid = data.userId || data.user_id || "-";
     if (uid.toString().toLowerCase() === "unknown") uid = "Unknown";
